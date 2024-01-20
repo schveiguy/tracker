@@ -1,0 +1,48 @@
+extends layout
+block extraJs
+  script.
+    function reloadWithClient() {
+      let clientid = document.getElementById('client-selector');
+      if(clientid.value == '0')
+        window.location = '/projects';
+      else
+        window.location = `/projects?clientId=${clientid.value}`;
+    }
+block content
+  h2 Projects
+
+  .row
+    .col-sm-2
+      select.form-select#client-selector(onchange="reloadWithClient()")
+        option(value="0") All Clients
+        - foreach(cl; model.allClients)
+          option(value=(cl.id), selected=(model.selectedClient.isNull ? false : model.selectedClient.get.id == cl.id)) #{cl.name}
+  table.table.table-striped
+    thead
+      tr
+        th id
+        th Name
+        th Client
+    tbody
+      - foreach(project; model.allProjects)
+        tr
+          td #{project.id}
+          td #{project.name}
+          td #{project.client_id} - #{model.clientLookup[project.client_id].name}
+  h2 Add a project
+  form(action="/add-project", method="POST")
+    .row
+      .col-sm-3
+        label.form-label Name
+        input.form-control(name="name", placeholder="Project Name")
+      .col-sm-3
+        - if(model.selectedClient.isNull)
+          label.form-label Client
+          select.form-select(name="client_id")
+            - foreach(cl; model.allClients)
+              option(value=(cl.id)) #{cl.id} - #{cl.name}
+        - else
+          label.form-label Client
+          p #{model.selectedClient.get.id} - #{model.selectedClient.get.name}
+          input(name="client_id",type="hidden", value=(model.selectedClient.get.id))
+    button.btn.btn-primary(type="submit") Add

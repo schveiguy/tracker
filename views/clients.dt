@@ -1,0 +1,26 @@
+extends layout
+block content
+  h2 All Clients
+
+  table.table.table-striped
+    thead
+      tr
+        th id
+        th Name
+        th Default Rate
+    tbody
+      - foreach(client; model.allClients)
+        tr
+          td #{client.id}
+          td #{client.name}
+          td #{client.defaultRate}
+  h2 Add a client
+  form(action="/add-client", method="POST")
+    .row
+      .col-sm-3
+        label.form-label Name
+        input.form-control(name="name", placeholder="Client Name")
+      .col-sm-3
+        label.form-label Default Rate
+        input.form-control(name="rate", type="number", step="0.01")
+    button.btn.btn-primary(type="submit") Add

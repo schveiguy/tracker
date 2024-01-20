@@ -1,0 +1,51 @@
+extends layout
+block content
+  h2 All time tasks
+
+  table.table.table-striped
+    thead
+      tr
+        th id
+        th Client
+        th Project
+        th Rate
+        th Start
+        th Stop
+        th Comment
+    tbody
+      - foreach(task; model.allTasks)
+        tr
+          td #{task.id}
+          td #{task.clientName}
+          td #{task.projectName}
+          td
+            - if(task.rate.isNull)
+              | (N/A)
+            - else
+              | $#{task.rate.get}
+          td #{task.start}
+          td
+            - if(task.stop.isNull)
+              | &nbsp;
+            - else
+              | #{task.stop.get}
+          td #{task.comment}
+
+  form(action="/timing-event", method="POST")
+    input(type="hidden", name="taskid", value=(model.currentTask.id))
+    input(type="hidden", name="action", value=(model.currentTask.id == -1 ? "start" : "stop"))
+    .row
+      .col-sm-2
+        label.form-label Client
+        select.form-select(name="client_id")
+          - foreach(client; model.allClients)
+      .col-sm-4
+        label.form-label Comment
+        textarea.form-control(name="comment", placeholder="Enter task comment here") #{model.currentTask.comment}
+    - if(model.currentTask.id != -1)
+      p Started at #{model.currentTask.start}
+    button.btn.btn-primary(type="submit")
+      - if(model.currentTask.id == -1)
+        | Start new task
+      - else
+        | Stop and Save

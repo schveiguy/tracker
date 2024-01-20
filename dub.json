@@ -1,0 +1,18 @@
+{
+	"authors": [
+		"Steven Schveighoffer"
+	],
+	"copyright": "Copyright © 2023, Steven Schveighoffer",
+	"dependencies": {
+        "handy-httpd": "~>7.16.1",
+        "diet-ng": "~>1.8.1",
+		"d2sqlite3": "~>1.0.0",
+		"slf4d": "~>2.4.3",
+		"sqlbuilder": "~>0.1.0",
+        "lookuptable": "~>0.1.4"
+	},
+    "versions": ["DietUseLive"],
+	"description": "A minimal D application.",
+	"license": "proprietary",
+	"name": "tracker"
+}
