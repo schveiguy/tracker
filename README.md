@@ -14,9 +14,15 @@ The intent is not to just use this as an off-the-shelf app, but to customize it.
 
 It should be usable from any device (especially mobile).
 
+## BIG WARNING
+
+There is no security on this. No login, no password, etc. Don't put this on an internet-facing port. The default binding address is localhost for a reason.
+
+I do want to add authentication, but I doubt it will ever get HTTPS (unless handy adds it).
+
 ## TODO
 
-* Editing tasks
+* Authentication
 * Export per client/project
 * Export based on regular intervals
 * Statistics with regards to time or percentage targets
