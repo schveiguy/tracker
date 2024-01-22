@@ -9,8 +9,6 @@ block extraJs
   - import std.datetime.systime;
   script.
     var clients = !{model.allClients.serialize};
-    var currentTaskId = !{model.currentTask.id};
-    var currentTaskStartTime = new Date(!{SysTime(model.currentTask.start).toUnixTime} * 1000);
 
     function setupProjectList() {
       let clientId = document.getElementById('client-selector').value;
@@ -40,17 +38,14 @@ block extraJs
       setDefaultRate();
     }
 
-    function confirmDelete(id) {
-      if(confirm(`Delete task id ${id}? this can't be undone!`))
-      {
-        window.location = `/delete-task?taskid=${id}`;
-      }
-    }
+    setupProjectList();
 
-    function updateElapsedTime()
-    {
-      let elapsedTimeElement = document.getElementById('elapsed-time')
-      let delta = Date.now().valueOf() - currentTaskStartTime.valueOf();
+    let fpstart = flatpickr(document.getElementById('start'), {enableTime: true, enableSeconds: true});
+    let fpstop = flatpickr(document.getElementById('stop'), {enableTime: true, enableSeconds: true});
+
+    function updateDuration() {
+      let durationElement = document.getElementById('duration')
+      let delta = fpstop.selectedDates[0].valueOf() - fpstart.selectedDates[0].valueOf();
       delta += 500; // round up
       delta = Math.floor(delta / 1000);
       let seconds = ('0' + (delta % 60)).slice(-2);
@@ -58,62 +53,16 @@ block extraJs
       let minutes = ('0' + (delta % 60)).slice(-2);
       delta = Math.floor(delta / 60);
       let hours = delta;
-      elapsedTimeElement.innerText = `${hours}:${minutes}:${seconds}`;
+      durationElement.innerText = `${hours}:${minutes}:${seconds}`;
     }
 
-    setupProjectList();
-    if(currentTaskId == -1)
-      setDefaultRate();
-    else
-    {
-      // set up a timer to tick on screen
-      updateElapsedTime();
-      setInterval(updateElapsedTime, 1000);
-    }
-
+    fpstart.config.onChange.push(updateDuration);
+    fpstop.config.onChange.push(updateDuration);
       
 block content
+  h2 Edit task id #{model.currentTask.id}
   - import app : Rate, DurationPrinter;
-  h2 All time tasks
-
-  .table-responsive
-    table.table.table-striped.table
-      thead
-        tr
-          th id
-          th Client
-          th Project
-          th Rate
-          th Start
-          th Stop
-          th Duration
-          th Comment
-          th
-      tbody
-        - foreach(task; model.allTasks)
-          tr
-            td #{task.id}
-            td #{model.clientLookup[task.client_id].name}
-            td
-              - if(task.project_id.isNull)
-                | &nbsp;
-              - else
-                | #{model.projectLookup[task.project_id.get].name}
-            td
-              - if(task.rate.isNull)
-                | (N/A)
-              - else
-                | $#{task.rate.get}
-            td #{task.start}
-            td #{task.stop.get}
-            td #{DurationPrinter(task.stop.get - task.start)}
-            td #{task.comment}
-            td
-              .btn-group
-                a.btn.btn-primary(href="/edit-task?taskid=#{task.id}") Edit
-                button.btn.btn-danger(type="button", onclick="confirmDelete(#{task.id})") Delete
-
-  form(action="/timing-event", method="POST")
+  form(action="/process-edit-task", method="POST")
     input(type="hidden", name="taskid", value=(model.currentTask.id))
     .row
       .col-md-2
@@ -132,18 +81,19 @@ block content
       .col-md-6
         label.form-label Comment
         input.form-control(type="text", name="comment", placeholder="Enter task comment here", value=(model.currentTask.comment))
-    - if(model.currentTask.id != -1)
-      p
-        | Started at #{model.currentTask.start} -- 
-        span#elapsed-time
-    - if(model.currentTask.id == -1)
-      button.btn.btn-primary(type="submit", name="action", value="start") Start new task
-    - else
-      .row
-        .col-md-4
-          .btn-group
-            button.btn.btn-secondary(type="submit", name="action", value="update") Update
-            button.btn.btn-primary(type="submit", name="action", value="stop") Stop and Save
-        .col-md-2
-        .col-md-2
-          button.btn.btn-danger(type="submit", name="action", value="cancel") Cancel
+    .row
+      .col-md-4
+        label.form-label Start
+        input#start.form-control.flatpickr(type="text", name="start", value=(model.currentTask.start.toISOExtString))
+      .col-md-4
+        label.form-label Stop
+        input#stop.form-control.flatpickr(type="text", name="stop", value=(model.currentTask.stop.get.toISOExtString))
+      .col-md-2
+        label.form-label Duration
+        p#duration #{DurationPrinter(model.currentTask.stop.get - model.currentTask.start)}
+    .row
+      .col-md-4
+        .btn-group
+          button.btn.btn-primary(type="submit", name="action", value="update") Update
+          a.btn.btn-secondary(href="/") Cancel
+

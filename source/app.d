@@ -1,3 +1,4 @@
+module app;
 import handy_httpd;
 import handy_httpd.components.form_urlencoded;
 
@@ -23,6 +24,9 @@ import std.array;
 import std.file : exists;
 import std.conv;
 import std.format;
+import std.exception;
+
+import iopipe.json.serialize;
 
 enum databaseName = "timedata.sqlite";
 
@@ -76,7 +80,10 @@ struct Rate
     {
         if(rate.length == 0)
             return Nullable!Rate.init;
-        return Rate(rate).nullable;
+        auto r = Rate(rate);
+        if(r.amount == 0)
+            return Nullable!Rate.init;
+        return r.nullable;
     }
 
     int dbValue() => amount;
@@ -85,9 +92,46 @@ struct Rate
         return Rate(amount);
     }
 
-    void toString(Out)(Out output) {
+    void toString(Out)(ref Out output) {
         output.formattedWrite("%d.%02d", amount / 100, amount % 100);
     }
+
+    void toJSON(scope void delegate(const(char)[]) w)
+    {
+        toString(w);
+    }
+}
+
+struct DurationPrinter
+{
+    Duration d;
+    void toString(Out)(ref Out output)
+    {
+        import std.format;
+        auto s = d.split!("hours", "minutes", "seconds");
+        output.formattedWrite("%d:%02d:%02d", s.hours, s.minutes, s.seconds);
+    }
+
+    string toString()
+    {
+        import std.array;
+        Appender!string app;
+        toString(app);
+        return app.data;
+    }
+}
+
+DateTime parseDate(string s)
+{
+    infoF!"parsing date %s"(s);
+    int year;
+    int month;
+    int day;
+    int hour;
+    int minute;
+    int second;
+    s.formattedRead("%d-%d-%d %d:%d:%d", year, month, day, hour, minute, second);
+    return DateTime(year, month, day, hour, minute, second);
 }
 
 Database openDB()
@@ -103,32 +147,23 @@ Database openDB()
     return db;
 }
 
-struct TaskModel
-{
-    this(TimeTask task, string clientName, Nullable!string projectName)
-    {
-        this.task = task;
-        this.clientName = clientName;
-        this.projectName = projectName.get("");
-    }
-
-    TimeTask task;
-    string clientName;
-    string projectName;
-
-    alias task this;
-}
-
 alias LookupById(T) = typeof(fieldLookup!"id"(T[].init));
 
 struct IndexViewModel
 {
     TimeTask currentTask;
-    TaskModel[] allTasks;
+    TimeTask[] allTasks;
     Client[] allClients;
     LookupById!Client clientLookup;
     Project[] allProjects;
     LookupById!Project projectLookup;
+}
+
+struct TaskEditViewModel
+{
+    TimeTask currentTask;
+    Client[] allClients;
+    Project[] allProjects;
 }
 
 struct ClientViewModel
@@ -169,64 +204,109 @@ void runServer(ref HttpRequestContext ctx) {
     // TODO: make lookup work with this, or wait for QueryParam to become more sane
     auto postdata = formData.fieldLookup!"name";
     auto querydata = ctx.request.queryParams.fieldLookup!"name";
-    //auto postdata = QueryParam.toMap(formData);
-    //auto querydata = QueryParam.toMap(ctx.request.queryParams);
 
-	infoF!"Processing a new request, url: %s, parameters: %s, method: %s, Content-Type: %s"(ctx.request.url, ctx.request.queryParams, ctx.request.method, ctx.request.getHeader("Content-Type"));
+	debugF!"Processing a new request, url: %s, parameters: %s, method: %s, Content-Type: %s"(ctx.request.url, ctx.request.queryParams, ctx.request.method, ctx.request.getHeader("Content-Type"));
 
     DataSet!TimeTask ds;
     DataSet!Client cds;
     DataSet!Project pds;
+
+    TimeTask getUnfinishedTask(Database db) => db.fetchOne(select(ds).where(ds.stop, " IS NULL"), TimeTask.init);
+
+    auto db = openDB;
 	switch(ctx.request.url)
     {
         case "":
         case "/":
             // fetch all the data
-            auto db = openDB;
             IndexViewModel model;
-            model.allTasks = db.fetch(select(ds, ds.client.name, ds.project.name).where(ds.stop, " IS NOT NULL")).map!(tup => TaskModel(tup.expand)).array;
-            {
-                auto currentTask = db.fetch(select(ds).where(ds.stop, " IS NULL"));
-                if(!currentTask.empty)
-                    model.currentTask = currentTask.front;
-            }
+            model.allTasks = db.fetch(select(ds).where(ds.stop, " IS NOT NULL")).array;
+            model.currentTask = getUnfinishedTask(db);
+            model.allClients = db.fetch(select(cds).orderBy(cds.name)).array;
+            model.clientLookup = model.allClients.fieldLookup!"id";
+            model.allProjects = db.fetch(select(pds).orderBy(pds.name)).array;
+            model.projectLookup = model.allProjects.fieldLookup!"id";
             ctx.response.renderDiet!("index.dt", model);
             break;
         case "/timing-event":
             // ensure there is no task currently running
-            auto db = openDB;
             auto taskid = postdata["taskid"].value.to!int;
-            TimeTask currentTask;
             if(taskid != -1)
             {
-                currentTask = db.fetchUsingKey!TimeTask(taskid);
-                if(postdata["action"].value == "stop")
+                auto currentTask = db.fetchUsingKey!TimeTask(taskid);
+                if(currentTask.stop.isNull) // if stop is null, this task was
+                                            // stopped elsewhere.
                 {
-                    if(currentTask.stop.isNull)
+                    if(postdata["action"].value == "stop")
                     {
                         currentTask.comment = postdata["comment"].value;
+                        currentTask.client_id = postdata["client_id"].value.to!int;
+                        currentTask.project_id = postdata["project_id"].value.to!int;
+                        currentTask.rate = Rate.parse(postdata["rate"].value);
                         currentTask.stop = cast(DateTime)Clock.currTime;
                         db.save(currentTask);
+                    }
+                    else if(postdata["action"].value == "update")
+                    {
+                        currentTask.comment = postdata["comment"].value;
+                        currentTask.client_id = postdata["client_id"].value.to!int;
+                        currentTask.project_id = postdata["project_id"].value.to!int;
+                        currentTask.rate = Rate.parse(postdata["rate"].value);
+                        db.save(currentTask);
+                    }
+                    else if(postdata["action"].value == "cancel")
+                    {
+                        db.erase(currentTask);
                     }
                 }
             }
             else
             {
-                // not yet a task, insert one
-                currentTask.comment = postdata["comment"].value;
-                currentTask.start = cast(DateTime)Clock.currTime;
-                db.create(currentTask);
+                // see if there is a current task
+                auto currentTask = getUnfinishedTask(db);
+                if(currentTask.id == -1) // no unfinished task yet
+                {
+                    // not yet a task, insert one
+                    currentTask.comment = postdata["comment"].value;
+                    currentTask.client_id = postdata["client_id"].value.to!int;
+                    currentTask.project_id = postdata["project_id"].value.to!int;
+                    currentTask.start = cast(DateTime)Clock.currTime;
+                    currentTask.rate = Rate.parse(postdata["rate"].value);
+                    db.create(currentTask);
+                }
             }
             ctx.response.redirect("/");
             break;
+        case "/delete-task":
+            auto task = db.fetchUsingKey!TimeTask(querydata["taskid"].value.to!int);
+            db.erase(task);
+            ctx.response.redirect("/");
+            break;
+        case "/edit-task":
+            TaskEditViewModel model;
+            model.currentTask = db.fetchUsingKey!TimeTask(querydata["taskid"].value.to!int);
+            model.allClients = db.fetch(select(cds).orderBy(cds.name)).array;
+            model.allProjects = db.fetch(select(pds).orderBy(pds.name)).array;
+            ctx.response.renderDiet!("editor.dt", model);
+            break;
+        case "/process-edit-task":
+            auto task = db.fetchUsingKey!TimeTask(postdata["taskid"].value.to!int);
+            task.start = parseDate(postdata["start"].value);
+            task.stop = parseDate(postdata["stop"].value);
+            enforce(task.stop.get > task.start, "Duration must be positive");
+            task.comment = postdata["comment"].value;
+            task.client_id = postdata["client_id"].value.to!int;
+            task.project_id = postdata["project_id"].value.to!int;
+            task.rate = Rate.parse(postdata["rate"].value);
+            db.save(task);
+            ctx.response.redirect("/");
+            break;
         case "/clients":
-            auto db = openDB;
             ClientViewModel model;
             model.allClients = db.fetch(select(cds)).array;
             ctx.response.renderDiet!("clients.dt", model);
             break;
         case "/projects":
-            auto db = openDB;
             ProjectViewModel model;
             auto query = select(pds);
             if(auto clidstr = "clientId" in querydata)
@@ -243,7 +323,6 @@ void runServer(ref HttpRequestContext ctx) {
             ctx.response.renderDiet!("projects.dt", model);
             break;
         case "/add-client":
-            auto db = openDB;
             Client newClient;
             newClient.name = postdata["name"].value;
             newClient.defaultRate = Rate.parse(postdata["rate"].value);
@@ -251,7 +330,6 @@ void runServer(ref HttpRequestContext ctx) {
             ctx.response.redirect("/clients");
             break;
         case "/add-project":
-            auto db = openDB;
             Project newProject;
             newProject.name = postdata["name"].value;
             newProject.client_id = postdata["client_id"].value.to!int;
