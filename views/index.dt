@@ -71,6 +71,20 @@ block extraJs
       setInterval(updateElapsedTime, 1000);
     }
 
+    let startTimeElem = document.getElementById('start');
+    if(startTimeElem)
+    {
+      flatpickr(document.getElementById('start'),
+      {
+        enableTime: true,
+        enableSeconds: true,
+        onChange: (range) => {
+          currentTaskStartTime = range[0];
+        },
+        defaultDate: currentTaskStartTime
+      });
+    }
+
       
 block content
   - import app : Rate, DurationPrinter;
@@ -115,7 +129,7 @@ block content
 
   form(action="/timing-event", method="POST")
     input(type="hidden", name="taskid", value=(model.currentTask.id))
-    .row
+    .row.mb-3
       .col-md-2
         label.form-label Client
         select.form-select#client-selector(name="client_id", onchange="clientChanged()")
@@ -133,13 +147,18 @@ block content
         label.form-label Comment
         input.form-control(type="text", name="comment", placeholder="Enter task comment here", value=(model.currentTask.comment))
     - if(model.currentTask.id != -1)
-      p
-        | Started at #{model.currentTask.start} -- 
-        span#elapsed-time
+      .row.mb-3
+        .col-md-4
+          label.form-label Started at
+          input#start.form-control.flatpickr(type="text", name="start")
+        .col-md-2
+          label.form-label Elapsed
+          p
+            span#elapsed-time
     - if(model.currentTask.id == -1)
       button.btn.btn-primary(type="submit", name="action", value="start") Start new task
     - else
-      .row
+      .row.mb-3
         .col-md-4
           .btn-group
             button.btn.btn-secondary(type="submit", name="action", value="update") Update

@@ -243,6 +243,8 @@ void runServer(ref HttpRequestContext ctx) {
                         currentTask.client_id = postdata["client_id"].value.to!int;
                         currentTask.project_id = postdata["project_id"].value.to!int;
                         currentTask.rate = Rate.parse(postdata["rate"].value);
+                        currentTask.start = parseDate(postdata["start"].value);
+                        enforce(currentTask.start < cast(DateTime)Clock.currTime(), "Cannot set start time to later than current time");
                         currentTask.stop = cast(DateTime)Clock.currTime;
                         db.save(currentTask);
                     }
@@ -252,6 +254,8 @@ void runServer(ref HttpRequestContext ctx) {
                         currentTask.client_id = postdata["client_id"].value.to!int;
                         currentTask.project_id = postdata["project_id"].value.to!int;
                         currentTask.rate = Rate.parse(postdata["rate"].value);
+                        currentTask.start = parseDate(postdata["start"].value);
+                        enforce(currentTask.start < cast(DateTime)Clock.currTime(), "Cannot set start time to later than current time");
                         db.save(currentTask);
                     }
                     else if(postdata["action"].value == "cancel")
