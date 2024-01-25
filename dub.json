@@ -4,7 +4,7 @@
 	],
 	"copyright": "Copyright © 2023, Steven Schveighoffer",
 	"dependencies": {
-        "handy-httpd": "~>7.16.1",
+        "handy-httpd": "~>8.0.0",
         "diet-ng": "~>1.8.1",
 		"d2sqlite3": "~>1.0.0",
 		"slf4d": "~>2.4.3",

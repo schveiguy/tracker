@@ -1,6 +1,6 @@
 module app;
 import handy_httpd;
-import handy_httpd.components.form_urlencoded;
+import handy_httpd.components.multivalue_map;
 
 import schlib.lookup;
 
@@ -194,18 +194,16 @@ void redirect(ref HttpResponse response, string location)
 }
 
 void runServer(ref HttpRequestContext ctx) {
-    QueryParam[] formData;
+    auto querydata = ctx.request.queryParams;
+    StringMultiValueMap postdata;
+    auto contentType = ctx.request.headers.getFirst("Content-Type").orElse("");
     if(ctx.request.method == Method.POST &&
-        ctx.request.getHeader("Content-Type") == "application/x-www-form-urlencoded")
+        contentType == "application/x-www-form-urlencoded")
     {
-        formData = ctx.request.readBodyAsFormUrlEncoded;
+        postdata = ctx.request.readBodyAsFormUrlEncoded;
     }
 
-    // TODO: make lookup work with this, or wait for QueryParam to become more sane
-    auto postdata = formData.fieldLookup!"name";
-    auto querydata = ctx.request.queryParams.fieldLookup!"name";
-
-	debugF!"Processing a new request, url: %s, parameters: %s, method: %s, Content-Type: %s"(ctx.request.url, ctx.request.queryParams, ctx.request.method, ctx.request.getHeader("Content-Type"));
+	debugF!"Processing a new request, url: %s, parameters: %s, method: %s, Content-Type: %s"(ctx.request.url, ctx.request.queryParams, ctx.request.method, contentType);
 
     DataSet!TimeTask ds;
     DataSet!Client cds;
@@ -230,37 +228,32 @@ void runServer(ref HttpRequestContext ctx) {
             break;
         case "/timing-event":
             // ensure there is no task currently running
-            auto taskid = postdata["taskid"].value.to!int;
+            auto taskid = postdata["taskid"].to!int;
             if(taskid != -1)
             {
                 auto currentTask = db.fetchUsingKey!TimeTask(taskid);
                 if(currentTask.stop.isNull) // if stop is null, this task was
                                             // stopped elsewhere.
                 {
-                    if(postdata["action"].value == "stop")
+                    switch(postdata["action"])
                     {
-                        currentTask.comment = postdata["comment"].value;
-                        currentTask.client_id = postdata["client_id"].value.to!int;
-                        currentTask.project_id = postdata["project_id"].value.to!int;
-                        currentTask.rate = Rate.parse(postdata["rate"].value);
-                        currentTask.start = parseDate(postdata["start"].value);
-                        enforce(currentTask.start < cast(DateTime)Clock.currTime(), "Cannot set start time to later than current time");
+                    case "stop":
                         currentTask.stop = cast(DateTime)Clock.currTime;
-                        db.save(currentTask);
-                    }
-                    else if(postdata["action"].value == "update")
-                    {
-                        currentTask.comment = postdata["comment"].value;
-                        currentTask.client_id = postdata["client_id"].value.to!int;
-                        currentTask.project_id = postdata["project_id"].value.to!int;
-                        currentTask.rate = Rate.parse(postdata["rate"].value);
-                        currentTask.start = parseDate(postdata["start"].value);
+                        goto case "update";
+                    case "update":
+                        currentTask.comment = postdata["comment"];
+                        currentTask.client_id = postdata["client_id"].to!int;
+                        currentTask.project_id = postdata["project_id"].to!int;
+                        currentTask.rate = Rate.parse(postdata["rate"]);
+                        currentTask.start = parseDate(postdata["start"]);
                         enforce(currentTask.start < cast(DateTime)Clock.currTime(), "Cannot set start time to later than current time");
                         db.save(currentTask);
-                    }
-                    else if(postdata["action"].value == "cancel")
-                    {
+                        break;
+                    case "cancel":
                         db.erase(currentTask);
+                        break;
+                    default:
+                        break;
                     }
                 }
             }
@@ -271,37 +264,37 @@ void runServer(ref HttpRequestContext ctx) {
                 if(currentTask.id == -1) // no unfinished task yet
                 {
                     // not yet a task, insert one
-                    currentTask.comment = postdata["comment"].value;
-                    currentTask.client_id = postdata["client_id"].value.to!int;
-                    currentTask.project_id = postdata["project_id"].value.to!int;
+                    currentTask.comment = postdata["comment"];
+                    currentTask.client_id = postdata["client_id"].to!int;
+                    currentTask.project_id = postdata["project_id"].to!int;
                     currentTask.start = cast(DateTime)Clock.currTime;
-                    currentTask.rate = Rate.parse(postdata["rate"].value);
+                    currentTask.rate = Rate.parse(postdata["rate"]);
                     db.create(currentTask);
                 }
             }
             ctx.response.redirect("/");
             break;
         case "/delete-task":
-            auto task = db.fetchUsingKey!TimeTask(querydata["taskid"].value.to!int);
+            auto task = db.fetchUsingKey!TimeTask(querydata["taskid"].to!int);
             db.erase(task);
             ctx.response.redirect("/");
             break;
         case "/edit-task":
             TaskEditViewModel model;
-            model.currentTask = db.fetchUsingKey!TimeTask(querydata["taskid"].value.to!int);
+            model.currentTask = db.fetchUsingKey!TimeTask(querydata["taskid"].to!int);
             model.allClients = db.fetch(select(cds).orderBy(cds.name)).array;
             model.allProjects = db.fetch(select(pds).orderBy(pds.name)).array;
             ctx.response.renderDiet!("editor.dt", model);
             break;
         case "/process-edit-task":
-            auto task = db.fetchUsingKey!TimeTask(postdata["taskid"].value.to!int);
-            task.start = parseDate(postdata["start"].value);
-            task.stop = parseDate(postdata["stop"].value);
+            auto task = db.fetchUsingKey!TimeTask(postdata["taskid"].to!int);
+            task.start = parseDate(postdata["start"]);
+            task.stop = parseDate(postdata["stop"]);
             enforce(task.stop.get > task.start, "Duration must be positive");
-            task.comment = postdata["comment"].value;
-            task.client_id = postdata["client_id"].value.to!int;
-            task.project_id = postdata["project_id"].value.to!int;
-            task.rate = Rate.parse(postdata["rate"].value);
+            task.comment = postdata["comment"];
+            task.client_id = postdata["client_id"].to!int;
+            task.project_id = postdata["project_id"].to!int;
+            task.rate = Rate.parse(postdata["rate"]);
             db.save(task);
             ctx.response.redirect("/");
             break;
@@ -313,7 +306,9 @@ void runServer(ref HttpRequestContext ctx) {
         case "/projects":
             ProjectViewModel model;
             auto query = select(pds);
-            if(auto clidstr = "clientId" in querydata)
+            auto clidstr = querydata.getFirst("clientId");
+            //if(auto clidstr = querydata.getFirst("clientId"))
+            if(!clidstr.isNull)
             {
                 if(clidstr.value.length > 0) {
                     auto clid = clidstr.value.to!int;
@@ -328,15 +323,15 @@ void runServer(ref HttpRequestContext ctx) {
             break;
         case "/add-client":
             Client newClient;
-            newClient.name = postdata["name"].value;
-            newClient.defaultRate = Rate.parse(postdata["rate"].value);
+            newClient.name = postdata["name"];
+            newClient.defaultRate = Rate.parse(postdata["rate"]);
             db.create(newClient);
             ctx.response.redirect("/clients");
             break;
         case "/add-project":
             Project newProject;
-            newProject.name = postdata["name"].value;
-            newProject.client_id = postdata["client_id"].value.to!int;
+            newProject.name = postdata["name"];
+            newProject.client_id = postdata["client_id"].to!int;
             db.create(newProject);
             ctx.response.redirect("/projects");
             break;
@@ -348,7 +343,7 @@ void runServer(ref HttpRequestContext ctx) {
 
 void main(string[] args)
 {
-    /*auto provider = new shared DefaultProvider(false, Levels.TRACE);
+    /*auto provider = new shared DefaultProvider(false, Levels.DEBUG);
     configureLoggingProvider(provider);*/
     auto server = new HttpServer(&runServer);
     server.start();
