@@ -343,8 +343,8 @@ void runServer(ref HttpRequestContext ctx) {
 
 void main(string[] args)
 {
-    /*auto provider = new shared DefaultProvider(false, Levels.DEBUG);
-    configureLoggingProvider(provider);*/
+    auto provider = new shared DefaultProvider(true);
+    configureLoggingProvider(provider);
     auto server = new HttpServer(&runServer);
     server.start();
 }
