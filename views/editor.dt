@@ -40,8 +40,15 @@ block extraJs
 
     setupProjectList();
 
+
     let fpstart = flatpickr(document.getElementById('start'), {enableTime: true, enableSeconds: true});
     let fpstop = flatpickr(document.getElementById('stop'), {enableTime: true, enableSeconds: true});
+    if(fpstart.mobileInput) {
+      fpstart.mobileInput.setAttribute("step", "any");
+    }
+    if(fpstop.mobileInput) {
+      fpstop.mobileInput.setAttribute("step", "any");
+    }
 
     function updateDuration() {
       let durationElement = document.getElementById('duration')
