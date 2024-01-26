@@ -74,7 +74,7 @@ block extraJs
     let startTimeElem = document.getElementById('start');
     if(startTimeElem)
     {
-      flatpickr(document.getElementById('start'),
+      let fp = flatpickr(document.getElementById('start'),
       {
         enableTime: true,
         enableSeconds: true,
@@ -83,6 +83,9 @@ block extraJs
         },
         defaultDate: currentTaskStartTime
       });
+      if(fp.mobileInput) {
+        fp.mobileInput.setAttribute("step", "any");
+      }
     }
 
       
