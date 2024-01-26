@@ -4,15 +4,24 @@
 	],
 	"copyright": "Copyright © 2023, Steven Schveighoffer",
 	"dependencies": {
-        "handy-httpd": "~>8.0.0",
+        "handy-httpd": "~>8.1.2",
         "diet-ng": "~>1.8.1",
 		"d2sqlite3": "~>1.0.0",
 		"slf4d": "~>2.4.3",
 		"sqlbuilder": "~>0.1.0",
         "lookuptable": "~>0.1.4",
-        "jsoniopipe" : "~>0.2.7"
+        "jsoniopipe" : "~>0.2.7",
+        "getopt2" : "~>0.0.1"
 	},
-    "versions": ["DietUseLive"],
+    "configurations": {
+        "application" : {
+            "targetType": "executable"
+        },
+        "dev" : {
+            "versions": ["DietUseLive"],
+            "targetType": "executable"
+        }
+    },
 	"description": "A minimal D application.",
 	"license": "proprietary",
 	"name": "tracker"

@@ -3,6 +3,8 @@ import handy_httpd;
 import handy_httpd.components.multivalue_map;
 
 import schlib.lookup;
+import schlib.getopt2;
+import std.getopt;
 
 import sqlbuilder.dialect.sqlite;
 import sqlbuilder.dataset;
@@ -203,7 +205,7 @@ void runServer(ref HttpRequestContext ctx) {
         postdata = ctx.request.readBodyAsFormUrlEncoded;
     }
 
-	debugF!"Processing a new request, url: %s, parameters: %s, method: %s, Content-Type: %s"(ctx.request.url, ctx.request.queryParams, ctx.request.method, contentType);
+	debugF!"Processing a new request, url: %s, parameters: %s, method: %s, Content-Type: %s"(ctx.request.url, ctx.request.queryParams[], ctx.request.method, contentType);
 
     DataSet!TimeTask ds;
     DataSet!Client cds;
@@ -306,9 +308,9 @@ void runServer(ref HttpRequestContext ctx) {
         case "/projects":
             ProjectViewModel model;
             auto query = select(pds);
-            auto clidstr = querydata.getFirst("clientId");
-            //if(auto clidstr = querydata.getFirst("clientId"))
-            if(!clidstr.isNull)
+            //auto clidstr = querydata.getFirst("clientId");
+            if(auto clidstr = querydata.getFirst("clientId"))
+            //if(!clidstr.isNull)
             {
                 if(clidstr.value.length > 0) {
                     auto clid = clidstr.value.to!int;
@@ -343,8 +345,31 @@ void runServer(ref HttpRequestContext ctx) {
 
 void main(string[] args)
 {
-    auto provider = new shared DefaultProvider(true);
+    static struct Opts
+    {
+        @description("Set the slf4d log level of the application (default: INFO)")
+            Levels logLevel = Levels.INFO;
+
+        @description("Bind to this IP address (default: 17.0.0.1)")
+            string ipAddress = "127.0.0.1";
+
+        @description("Bind to this port (default: 8080)")
+            ushort port = 8080;
+    }
+
+    Opts opts;
+    auto helpInformation = args.getopt2(opts);
+    if(helpInformation.helpWanted)
+    {
+        defaultGetoptPrinter("Time tracker", helpInformation.options);
+        return;
+    }
+    auto provider = new shared DefaultProvider(true, opts.logLevel);
     configureLoggingProvider(provider);
-    auto server = new HttpServer(&runServer);
+    auto server = new HttpServer(&runServer,
+            ServerConfig(
+                hostname: opts.ipAddress,
+                port: opts.port
+            ));
     server.start();
 }
