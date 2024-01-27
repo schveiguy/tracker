@@ -1,4 +1,7 @@
-module app;
+module tracker.app;
+
+import tracker.db;
+
 import handy_httpd;
 import handy_httpd.components.multivalue_map;
 
@@ -30,80 +33,6 @@ import std.exception;
 
 import iopipe.json.serialize;
 
-enum databaseName = "timedata.sqlite";
-
-struct Client
-{
-    @primaryKey @autoIncrement int id = -1;
-    string name;
-    Nullable!Rate defaultRate;
-
-    static @refersTo!TimeTask @mapping("client_id") Relation tasks;
-    static @refersTo!Project @mapping("client_id") Relation projects;
-}
-
-struct Project
-{
-    @primaryKey @autoIncrement int id = -1;
-    @mustReferTo!Client("client") int client_id;
-    string name;
-
-    static @refersTo!TimeTask @mapping("project_id") Relation tasks;
-}
-
-struct TimeTask
-{
-    @primaryKey @autoIncrement int id = -1;
-    @mustReferTo!Client("client") int client_id;
-    @refersTo!Project("project") Nullable!int project_id;
-    Nullable!Rate rate;
-    DateTime start;
-    Nullable!DateTime stop;
-    string comment;
-}
-
-struct Rate
-{
-    int amount;
-    this(int amount) {
-        this.amount = amount;
-    }
-
-    this(string rate) {
-        assert(rate.length > 0);
-        auto segments = rate.splitter(".");
-        amount = segments.front.to!int * 100;
-        segments.popFront;
-        if(!segments.empty)
-            amount += segments.front.to!int;
-    }
-
-    static Nullable!Rate parse(string rate)
-    {
-        if(rate.length == 0)
-            return Nullable!Rate.init;
-        auto r = Rate(rate);
-        if(r.amount == 0)
-            return Nullable!Rate.init;
-        return r.nullable;
-    }
-
-    int dbValue() => amount;
-
-    static Rate fromDbValue(int amount) {
-        return Rate(amount);
-    }
-
-    void toString(Out)(ref Out output) {
-        output.formattedWrite("%d.%02d", amount / 100, amount % 100);
-    }
-
-    void toJSON(scope void delegate(const(char)[]) w)
-    {
-        toString(w);
-    }
-}
-
 struct DurationPrinter
 {
     Duration d;
@@ -134,19 +63,6 @@ DateTime parseDate(string s)
     int second;
     s.formattedRead("%d-%d-%d %d:%d:%d", year, month, day, hour, minute, second);
     return DateTime(year, month, day, hour, minute, second);
-}
-
-Database openDB()
-{
-    auto db = Database(databaseName);
-    if(db.execute("SELECT COUNT(*) FROM sqlite_master").oneValue!long == 0)
-    {
-        info("Empty database, creating tables...");
-        db.execute(createTableSql!(TimeTask, true));
-        db.execute(createTableSql!(Project, true));
-        db.execute(createTableSql!(Client, true));
-    }
-    return db;
 }
 
 alias LookupById(T) = typeof(fieldLookup!"id"(T[].init));
@@ -220,7 +136,10 @@ void runServer(ref HttpRequestContext ctx) {
         case "/":
             // fetch all the data
             IndexViewModel model;
-            model.allTasks = db.fetch(select(ds).where(ds.stop, " IS NOT NULL")).array;
+            auto taskQuery = select(ds).where(ds.stop, " IS NOT NULL").orderBy(ds.id.descend);
+
+            // get any filtering
+            model.allTasks = db.fetch(select(ds).where(ds.stop, " IS NOT NULL").orderBy(ds.id.descend)).array;
             model.currentTask = getUnfinishedTask(db);
             model.allClients = db.fetch(select(cds).orderBy(cds.name)).array;
             model.clientLookup = model.allClients.fieldLookup!"id";
@@ -364,8 +283,13 @@ void main(string[] args)
         defaultGetoptPrinter("Time tracker", helpInformation.options);
         return;
     }
+
     auto provider = new shared DefaultProvider(true, opts.logLevel);
     configureLoggingProvider(provider);
+
+    // apply any migrations
+    applyMigrations();
+
     auto server = new HttpServer(&runServer,
             ServerConfig(
                 hostname: opts.ipAddress,

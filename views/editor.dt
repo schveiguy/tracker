@@ -68,7 +68,8 @@ block extraJs
       
 block content
   h2 Edit task id #{model.currentTask.id}
-  - import app : Rate, DurationPrinter;
+  - import tracker.db : Rate;
+  - import tracker.app : DurationPrinter;
   form(action="/process-edit-task", method="POST")
     input(type="hidden", name="taskid", value=(model.currentTask.id))
     .row

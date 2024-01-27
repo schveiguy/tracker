@@ -1,4 +1,4 @@
-timedata.sqlite
+*.sqlite
 .dub
 docs.json
 __dummy.html

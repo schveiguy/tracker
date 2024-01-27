@@ -90,46 +90,9 @@ block extraJs
 
       
 block content
-  - import app : Rate, DurationPrinter;
-  h2 All time tasks
-
-  .table-responsive
-    table.table.table-striped.table
-      thead
-        tr
-          th id
-          th Client
-          th Project
-          th Rate
-          th Start
-          th Stop
-          th Duration
-          th Comment
-          th
-      tbody
-        - foreach(task; model.allTasks)
-          tr
-            td #{task.id}
-            td #{model.clientLookup[task.client_id].name}
-            td
-              - if(task.project_id.isNull)
-                | &nbsp;
-              - else
-                | #{model.projectLookup[task.project_id.get].name}
-            td
-              - if(task.rate.isNull)
-                | (N/A)
-              - else
-                | $#{task.rate.get}
-            td #{task.start}
-            td #{task.stop.get}
-            td #{DurationPrinter(task.stop.get - task.start)}
-            td #{task.comment}
-            td
-              .btn-group
-                a.btn.btn-primary(href="/edit-task?taskid=#{task.id}") Edit
-                button.btn.btn-danger(type="button", onclick="confirmDelete(#{task.id})") Delete
-
+  - import tracker.db : Rate;
+  - import tracker.app : DurationPrinter;
+  h2 Task
   form(action="/timing-event", method="POST")
     input(type="hidden", name="taskid", value=(model.currentTask.id))
     .row.mb-3
@@ -169,3 +132,42 @@ block content
         .col-md-2
         .col-md-2
           button.btn.btn-danger(type="submit", name="action", value="cancel") Cancel
+  h2 Task History
+
+  .table-responsive
+    table.table.table-striped.table
+      thead
+        tr
+          th id
+          th Client
+          th Project
+          th Rate
+          th Start
+          th Stop
+          th Duration
+          th Comment
+          th
+      tbody
+        - foreach(task; model.allTasks)
+          tr
+            td #{task.id}
+            td #{model.clientLookup[task.client_id].name}
+            td
+              - if(task.project_id.isNull)
+                | &nbsp;
+              - else
+                | #{model.projectLookup[task.project_id.get].name}
+            td
+              - if(task.rate.isNull)
+                | (N/A)
+              - else
+                | $#{task.rate.get}
+            td #{task.start}
+            td #{task.stop.get}
+            td #{DurationPrinter(task.stop.get - task.start)}
+            td #{task.comment}
+            td
+              .btn-group
+                a.btn.btn-primary(href="/edit-task?taskid=#{task.id}") Edit
+                button.btn.btn-danger(type="button", onclick="confirmDelete(#{task.id})") Delete
+
