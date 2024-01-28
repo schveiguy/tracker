@@ -74,7 +74,7 @@ block extraJs
     let startTimeElem = document.getElementById('start');
     if(startTimeElem)
     {
-      let fp = flatpickr(document.getElementById('start'),
+      let fp = flatpickr(startTimeElem,
       {
         enableTime: true,
         enableSeconds: true,
@@ -86,6 +86,16 @@ block extraJs
       if(fp.mobileInput) {
         fp.mobileInput.setAttribute("step", "any");
       }
+    }
+
+    let datefp = flatpickr(document.getElementById('date-filter'),
+    {
+      onChange: (range) => {
+        document.getElementById('filter-form').submit();
+      },
+    });
+    if(datefp.mobileInput) {
+      fp.mobileInput.setAttribute("step", "any");
     }
 
       
@@ -134,6 +144,30 @@ block content
           button.btn.btn-danger(type="submit", name="action", value="cancel") Cancel
   h2 Task History
 
+  form#filter-form(action="/", method="GET")
+    .row.mb-3
+      .col-md-2
+        label.form-label Client
+        select.form-select(name="client_id", onchange="this.form.submit()")
+          option(value="") (All)
+          - foreach(client; model.allClients)
+            option(value=(client.id),selected=(client.id == model.client_id)) #{client.id} - #{client.name}
+      .col-md-2
+        label.form-label Project
+        select.form-select(name="project_id", onchange="this.form.submit()")
+          option(value="") (All)
+          - foreach(project; model.allProjects)
+            option(value=(project.id),selected=(project.id == model.project_id)) #{project.id} - #{model.clientLookup[project.client_id].name}:#{project.name}
+      .col-md-2
+        label.form-label Period
+        select.form-select(name="period", onchange="this.form.submit()")
+          option(value="") All
+          option(value="month", selected=(model.period == "month")) Month
+          option(value="week", selected=(model.period == "week")) Week
+          option(value="day", selected=(model.period == "day")) Day
+      .col-md-4
+        label.form-label For date
+        input#date-filter.form-control(type="text", name="forDate", value=(model.forDate))
   .table-responsive
     table.table.table-striped.table
       thead

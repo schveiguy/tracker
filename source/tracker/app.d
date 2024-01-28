@@ -75,6 +75,12 @@ struct IndexViewModel
     LookupById!Client clientLookup;
     Project[] allProjects;
     LookupById!Project projectLookup;
+
+    // filtering
+    string period;
+    string forDate;
+    int client_id;
+    int project_id;
 }
 
 struct TaskEditViewModel
@@ -88,7 +94,6 @@ struct ClientViewModel
 {
     Client[] allClients;
 }
-
 
 struct ProjectViewModel
 {
@@ -139,7 +144,57 @@ void runServer(ref HttpRequestContext ctx) {
             auto taskQuery = select(ds).where(ds.stop, " IS NOT NULL").orderBy(ds.id.descend);
 
             // get any filtering
-            model.allTasks = db.fetch(select(ds).where(ds.stop, " IS NOT NULL").orderBy(ds.id.descend)).array;
+            string forDate = "now";
+            if(auto forDateAlt = ctx.request.queryParams.getFirst("forDate"))
+            {
+                if(forDateAlt.value != "")
+                {
+                    model.forDate = forDateAlt.value;
+                    forDate = forDateAlt.value;
+                }
+            }
+
+            if(auto timePeriod = ctx.request.queryParams.getFirst("period"))
+            {
+                model.period = timePeriod.value;
+                switch(timePeriod.value)
+                {
+                    case "month":
+                        taskQuery = taskQuery.where(ds.start, " >= DATE(", forDate.param, ", 'start of month') AND ",
+                                ds.start, " < DATE(", forDate.param, ", 'start of month', '+1 months')");
+                        break;
+                    case "week":
+                        taskQuery = taskQuery.where(ds.start, " >= DATE(", forDate.param, ", '-6 days', 'weekday 1') AND ",
+                                ds.start, " < DATE(", forDate.param, ", '+1 days', 'weekday 1')");
+                        break;
+                    case "day":
+                        taskQuery = taskQuery.where(ds.start, " >= DATE(", forDate.param, ", 'start of day') AND ",
+                                ds.start, " < DATE(", forDate.param, ", 'start of day', '+1 days')");
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            if(auto client_id = ctx.request.queryParams.getFirst("client_id"))
+            {
+                if(client_id.value.length != 0)
+                {
+                    model.client_id = client_id.value.to!int;
+                    taskQuery = taskQuery.where(ds.client_id, " = ", model.client_id.param);
+                }
+            }
+
+            if(auto project_id = ctx.request.queryParams.getFirst("project_id"))
+            {
+                if(project_id.value.length != 0)
+                {
+                    model.project_id = project_id.value.to!int;
+                    taskQuery = taskQuery.where(ds.project_id, " = ", model.project_id.param);
+                }
+            }
+
+            model.allTasks = db.fetch(taskQuery).array;
             model.currentTask = getUnfinishedTask(db);
             model.allClients = db.fetch(select(cds).orderBy(cds.name)).array;
             model.clientLookup = model.allClients.fieldLookup!"id";
@@ -227,9 +282,7 @@ void runServer(ref HttpRequestContext ctx) {
         case "/projects":
             ProjectViewModel model;
             auto query = select(pds);
-            //auto clidstr = querydata.getFirst("clientId");
             if(auto clidstr = querydata.getFirst("clientId"))
-            //if(!clidstr.isNull)
             {
                 if(clidstr.value.length > 0) {
                     auto clid = clidstr.value.to!int;
