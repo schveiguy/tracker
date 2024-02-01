@@ -55,9 +55,7 @@ block extraJs
     }
 
     setupProjectList();
-    if(currentTaskId == -1)
-      setDefaultRate();
-    else
+    if(currentTaskId != -1)
     {
       // set up a timer to tick on screen
       updateElapsedTime();
