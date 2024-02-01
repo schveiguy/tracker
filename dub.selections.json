@@ -11,7 +11,7 @@
 		"lookuptable": "0.1.4",
 		"path-matcher": "1.1.3",
 		"slf4d": "2.4.3",
-		"sqlbuilder": "0.2.0",
+		"sqlbuilder": "0.2.1",
 		"streams": "3.5.0"
 	}
 }

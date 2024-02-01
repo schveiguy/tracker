@@ -22,12 +22,14 @@ block content
       tr
         th id
         th Name
+        th Rate
         th Client
     tbody
       - foreach(project; model.allProjects)
         tr
           td #{project.id}
           td #{project.name}
+          td #{project.rate}
           td #{project.client_id} - #{model.clientLookup[project.client_id].name}
   h2 Add a project
   form(action="/add-project", method="POST")
@@ -35,6 +37,9 @@ block content
       .col-sm-3
         label.form-label Name
         input.form-control(name="name", placeholder="Project Name")
+      .col-sm-3
+        label.form-label Rate
+        input.form-control(name="rate", type="number", step="0.01")
       .col-sm-3
         - if(model.selectedClient.isNull)
           label.form-label Client

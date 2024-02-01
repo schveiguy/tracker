@@ -1,0 +1,105 @@
+doctype html
+html
+  head
+    meta(charset="UTF-8")
+    link(href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",rel="stylesheet", integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN", crossorigin="anonymous")
+
+    title #{model.isDelete ? "Delete " : ""}Invoice for #{model.invoice.invoiceDate}
+    style.
+      .titlename {
+        border-top: 5px #367DA2 solid;
+        margin-top: 2em;
+        color: #367DA2;
+        font-size: 30px;
+      }
+
+      .phone, .email {
+        color: #367DA2;
+      }
+
+      table.table-summary thead tr th {
+        color: white;
+        background-color: #367DA2;
+      }
+      td.quantity, th.quantity {
+        text-align: right;
+      }
+  body
+    - import std.uni : asUpperCase;
+    - import tracker.app : DurationPrinter, HourFraction;
+    div.container-fluid
+      - if(model.isDelete)
+        h2 Delete invoice id #{model.invoice.id}
+        .row
+          p.text-danger WARNING
+          p Do you wish to delete the invoice below? All tasks will be returned to the uninvoiced pool.
+        .row.border-bottom.pb-3
+          .btn-group.col-md-4
+            a.btn.btn-primary(href="/invoices") No
+            a.btn.btn-danger(href="/process-delete-invoice?invoiceid=#{model.invoice.id}") Yes
+      .row
+        .col
+          .titlename #{asUpperCase(model.myInfo.contractEntity)}
+      .row &nbsp;
+      .row
+        .col-3
+          h2 INVOICE
+          p.contact #{model.myInfo.contactName}
+          p
+            .phone #{model.myInfo.phone}
+            .email #{model.myInfo.email}
+          p
+          p
+            .address #{model.myInfo.address1}
+            - if(model.myInfo.address2.length)
+              .address #{model.myInfo.address2}
+            - if(model.myInfo.address3.length)
+              .address #{model.myInfo.address3}
+            - if(model.myInfo.address4.length)
+              .address #{model.myInfo.address4}
+        .col-9
+          p.contact Attention: #{model.client.contactName}
+          p.company-name #{model.client.contractEntity}
+          p
+            .company-address #{model.client.address1}
+            - if(model.client.address2.length)
+              .company-address #{model.client.address2}
+            - if(model.client.address3.length)
+              .company-address #{model.client.address3}
+            - if(model.client.address4.length)
+              .company-address #{model.client.address4}
+          p
+          p
+            .invoice-info Date: #{model.invoice.invoiceDate}
+            .invoice-info Invoice Number: #{model.invoice.invoiceNumber}
+            .invoice-info Terms: 30 Days
+      .row
+        .col-3
+        .col-9
+          table.table.table-bordered.table-summary
+            thead
+              tr
+                th Description
+                th Quantity
+                th Unit Price
+                th Cost
+            tbody
+              - foreach(ts; model.taskSummaries)
+                tr
+                  td #{ts.description}
+                  td.quantity #{HourFraction(ts.duration)}
+                  td.quantity $#{ts.rate}
+                  td.quantity $#{ts.cost}
+              tr
+                th.quantity Total
+                th.quantity #{model.totalHours}
+                th &nbsp;
+                th.quantity $#{model.totalCost}
+                
+      .row
+        .col-3
+        .col-9
+          p Thank you for your business. Detailed log of hours worked is included on remaining pages.
+          p Sincerely yours,
+
+          p #{model.myInfo.contactName}

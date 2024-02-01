@@ -1,0 +1,48 @@
+extends layout
+block content
+  h2 Edit client #{model.client.id} - #{model.client.name}
+
+  form(action="/process-edit-client", method="POST")
+    input(type="hidden", name="clientid", value=(model.client.id))
+    .row
+      .col-md-3
+        label.form-label Name
+        input.form-control(name="name", placeholder="Client Name", value=(model.client.name))
+      .col-md-3
+        label.form-label Full Name
+        input.form-control(name="contractEntity", placeholder="Full Name (contract entity)", value=(model.client.contractEntity))
+      .col-md-3
+        label.form-label Contact Name
+        input.form-control(name="contactName", value=(model.client.contactName))
+      .col-md-3
+        .form-check
+          input.form-check-input(type="checkbox", name="myInfo", value="Y", checked=(model.client.myInfo))
+          label.form-check-label Is My Info
+    .row
+      .col-md-4
+        label.form-label Address Line 1
+        input.form-control(name="address1", value=(model.client.address1))
+    .row
+      .col-md-4
+        label.form-label Address Line 2 (optional)
+        input.form-control(name="address2", value=(model.client.address2))
+    .row
+      .col-md-4
+        label.form-label Address Line 3 (optional)
+        input.form-control(name="address3", value=(model.client.address3))
+    .row
+      .col-md-4
+        label.form-label Address Line 4 (optional)
+        input.form-control(name="address4", value=(model.client.address4))
+    .row
+      .col-md-3
+        label.form-label Phone (optional)
+        input.form-control(name="phone", value=(model.client.phone))
+      .col-md-3
+        label.form-label Email (optional)
+        input.form-control(type="email",name="email", value=(model.client.email))
+    .row
+      .col-md-4
+        .btn-group
+          button.btn.btn-primary(type="submit") Update
+          a.btn.btn-secondary(href="/clients") Cancel

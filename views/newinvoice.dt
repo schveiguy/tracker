@@ -1,0 +1,70 @@
+extends layout
+block extraCss
+  style.
+    .hidden {
+      display: none !important;
+    }
+block extraJs
+  script.
+    function filterTasks()
+    {
+      let clientId = document.getElementById('client-selector').value;
+      console.time("performance");
+      document.querySelectorAll('tr.task-row').forEach(e => e.classList.add('hidden'));
+      console.timeLog("performance");
+      document.querySelectorAll(`tr.task-row[data-client='${clientId}']`).forEach(e => e.classList.remove('hidden'));
+      console.timeEnd("performance");
+    }
+
+    function pickAllTasks()
+    {
+      let clientId = document.getElementById('client-selector').value;
+      document.querySelectorAll(`tr.task-row[data-client='${clientId}'] input`).forEach(i => i.checked = true);
+    }
+    filterTasks();
+
+    let fp = flatpickr(document.getElementById('invoice-date'));
+
+    if(fp.mobileInput) {
+      fp.mobileInput.setAttribute("step", "any");
+    }
+block content
+  - import tracker.app : DurationPrinter;
+  h2 Add New Invoice
+  form(action="/process-add-invoice",method="POST")
+    .row
+      .col-md-2
+        label.form-label Select a Client
+        select#client-selector.form-select(name="client_id", onchange="filterTasks()")
+          - foreach(client; model.allClients)
+            option(value=(client.id)) #{client.id} - #{client.name}
+      .col-md-2
+        label.form-label Invoice Date
+        input#invoice-date.form-input.flatpickr(name="invoiceDate")
+    h3 Pick Tasks to Invoice
+    .table-responsive
+      table.table
+        thead
+          tr
+            th
+              button.btn.btn-primary(type="button",onclick="pickAllTasks()") All
+            th Start
+            th Stop
+            th Project
+            th Duration
+            th Comment
+        tbody
+          - foreach(task; model.tasks)
+            tr.task-row(data-client=(task.client_id))
+              td
+                .form-check
+                  label.form-check-label #{task.id}
+                  input.taskselector.form-check-input(type="checkbox", name="tasks[]", value=(task.id))
+              td #{task.start}
+              td #{task.stop.get}
+              td #{model.projectLookup[task.project_id].name}
+              td #{DurationPrinter(task.stop.get - task.start)}
+              td #{task.comment}
+    div.btn-group
+      button.btn.btn-primary(type="submit") Create New Invoice
+      a.btn.btn-secondary(href="/invoices") Cancel

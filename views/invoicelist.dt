@@ -1,0 +1,24 @@
+extends layout
+block content
+  h2 All Invoices
+
+  table.table.table-striped
+    thead
+      tr
+        th id
+        th Number
+        th Date
+        th Client
+        th
+    tbody
+      - foreach(invoice; model.allInvoices)
+        tr
+          td
+            a(href="/invoice?invoiceid=#{invoice.id}") #{invoice.id}
+          td
+            a(href="/invoice?invoiceid=#{invoice.id}") #{invoice.invoiceNumber}
+          td #{invoice.invoiceDate}
+          td #{model.clientLookup[invoice.client_id].name}
+          td
+            a.btn.btn-danger(href="/delete-invoice?invoiceid=#{invoice.id}") Delete
+  a.btn.btn-primary(href="/add-invoice") Create new Invoice

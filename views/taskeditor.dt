@@ -27,15 +27,8 @@ block extraJs
       document.getElementById('project-selector').value = firstValue;
     }
 
-    function setDefaultRate() {
-      let clientId = parseInt(document.getElementById('client-selector').value);
-      let rateElement = document.getElementById('rate');
-      rateElement.value = clients.find(c => c.id == clientId).defaultRate;
-    }
-
     function clientChanged() {
       setupProjectList();
-      setDefaultRate();
     }
 
     setupProjectList();
@@ -83,9 +76,6 @@ block content
         select.form-select#project-selector(name="project_id")
           - foreach(project; model.allProjects)
             option(data-client=(project.client_id), value=(project.id), selected=(project.id == model.currentTask.project_id)) #{project.id} - #{project.name}
-      .col-md-2
-        label.form-label Rate
-        input.form-control#rate(name="rate", type="number", step="0.01", value=(model.currentTask.rate.get(Rate(0))))
       .col-md-6
         label.form-label Comment
         input.form-control(type="text", name="comment", placeholder="Enter task comment here", value=(model.currentTask.comment))

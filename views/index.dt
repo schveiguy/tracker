@@ -29,15 +29,8 @@ block extraJs
       document.getElementById('project-selector').value = firstValue;
     }
 
-    function setDefaultRate() {
-      let clientId = parseInt(document.getElementById('client-selector').value);
-      let rateElement = document.getElementById('rate');
-      rateElement.value = clients.find(c => c.id == clientId).defaultRate;
-    }
-
     function clientChanged() {
       setupProjectList();
-      setDefaultRate();
     }
 
     function confirmDelete(id) {
@@ -116,9 +109,6 @@ block content
         select.form-select#project-selector(name="project_id")
           - foreach(project; model.allProjects)
             option(data-client=(project.client_id), value=(project.id), selected=(project.id == model.currentTask.project_id)) #{project.id} - #{project.name}
-      .col-md-2
-        label.form-label Rate
-        input.form-control#rate(name="rate", type="number", step="0.01", value=(model.currentTask.rate.get(Rate(0))))
       .col-md-6
         label.form-label Comment
         input.form-control(type="text", name="comment", placeholder="Enter task comment here", value=(model.currentTask.comment))
@@ -142,8 +132,7 @@ block content
         .col-md-2
         .col-md-2
           button.btn.btn-danger(type="submit", name="action", value="cancel") Cancel
-  h2 Task History
-
+  h2 Totals
   form#filter-form(action="/", method="GET")
     .row.mb-3
       .col-md-2
@@ -168,40 +157,95 @@ block content
       .col-md-4
         label.form-label For date
         input#date-filter.form-control(type="text", name="forDate", value=(model.forDate))
-  .table-responsive
-    table.table.table-striped.table
-      thead
-        tr
-          th id
-          th Client
-          th Project
-          th Rate
-          th Start
-          th Stop
-          th Duration
-          th Comment
-          th
-      tbody
-        - foreach(task; model.allTasks)
+  .row
+    .col-md-2 Time spent: #{DurationPrinter(model.totalTimeSpent)}
+    .col-md-2 Paid Time spent: #{DurationPrinter(model.totalPaidTime)}
+    .col-md-2 Total amount: $#{model.totalAmount}
+  h2 Details
+    button.btn.btn.primary-outline(type="button", data-bs-toggle="collapse", data-bs-target="#stats", aria-expanded="false", aria-controls="stats") &darr;
+  div#stats.collapse
+    h3 By Client
+    .table-responsive
+      table.table.table-striped
+        thead
           tr
-            td #{task.id}
-            td #{model.clientLookup[task.client_id].name}
-            td
-              - if(task.project_id.isNull)
-                | &nbsp;
-              - else
-                | #{model.projectLookup[task.project_id.get].name}
-            td
-              - if(task.rate.isNull)
-                | (N/A)
-              - else
-                | $#{task.rate.get}
-            td #{task.start}
-            td #{task.stop.get}
-            td #{DurationPrinter(task.stop.get - task.start)}
-            td #{task.comment}
-            td
-              .btn-group
-                a.btn.btn-primary(href="/edit-task?taskid=#{task.id}") Edit
-                button.btn.btn-danger(type="button", onclick="confirmDelete(#{task.id})") Delete
-
+            th Id
+            th Client
+            th Time Spent
+        tbody
+          - foreach(client; model.allClients)
+            - if(auto dur = client.id in model.clientTimeSpent)
+              tr
+                td #{client.id}
+                td #{client.name}
+                td #{DurationPrinter(*dur)}
+    h3 By Project
+    .table-responsive
+      table.table.table-striped
+        thead
+          tr
+            th Id
+            th Client
+            th Project
+            th Rate
+            th Time Spent
+            th Total Amount
+        tbody
+          - foreach(project; model.allProjects)
+            - if(auto dur = project.id in model.projectTimeSpent)
+              tr
+                td #{project.id}
+                td #{model.clientLookup[project.client_id].name}
+                td #{project.name}
+                td $#{project.rate}
+                td #{DurationPrinter(*dur)}
+                td $#{project.rate * (*dur)}
+    h3 By Rate
+    .table-responsive
+      table.table.table-striped
+        thead
+          tr
+            th Rate
+            th Time Spent
+            th Total Amount
+        tbody
+          - foreach(r, dur; model.rateTimeSpent)
+            tr
+              td $#{r}
+              td #{DurationPrinter(dur)}
+              td $#{r * dur}
+    h3 All Tasks
+    .table-responsive
+      table.table.table-striped.table
+        thead
+          tr
+            th id
+            th Client
+            th Project
+            th Rate
+            th Start
+            th Stop
+            th Duration
+            th Comment
+            th
+        tbody
+          - foreach(task; model.allTasks)
+            - auto project = model.projectLookup[task.project_id];
+            tr
+              td #{task.id}
+              td #{model.clientLookup[task.client_id].name}
+              td #{project.name}
+              td
+                - if(project.rate.amount == 0)
+                  | (N/A)
+                - else
+                  | $#{project.rate}
+              td #{task.start}
+              td #{task.stop.get}
+              td #{DurationPrinter(task.stop.get - task.start)}
+              td #{task.comment}
+              td
+                - if(task.invoice_id.isNull)
+                  .btn-group
+                    a.btn.btn-primary(href="/edit-task?taskid=#{task.id}") Edit
+                    button.btn.btn-danger(type="button", onclick="confirmDelete(#{task.id})") Delete

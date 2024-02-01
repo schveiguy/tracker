@@ -7,20 +7,76 @@ block content
       tr
         th id
         th Name
-        th Default Rate
+        th Full Name
+        th Is My Info?
+        th Contact Info
+        th
     tbody
       - foreach(client; model.allClients)
         tr
           td #{client.id}
           td #{client.name}
-          td #{client.defaultRate}
+          td #{client.contractEntity}
+          td #{client.myInfo ? "Y" : "N"}
+          td
+            - if(client.contactName.length > 0)
+              p #{client.contactName} 
+            - if(client.phone.length || client.email.length)
+              p
+                - if(client.phone.length > 0)
+                  | ph: #{client.phone} 
+                - if(client.email.length > 0)
+                  | em: #{client.email} 
+            p
+              | #{client.address1}
+              - if(client.address2.length > 0)
+                br
+                | #{client.address2} 
+              - if(client.address3.length > 0)
+                br
+                | #{client.address3} 
+              - if(client.address4.length > 0)
+                br
+                | #{client.address4} 
+          td
+            a.btn.btn-primary(href="/edit-client?clientid=#{client.id}") Edit
   h2 Add a client
   form(action="/add-client", method="POST")
     .row
-      .col-sm-3
+      .col-md-3
         label.form-label Name
         input.form-control(name="name", placeholder="Client Name")
-      .col-sm-3
-        label.form-label Default Rate
-        input.form-control(name="rate", type="number", step="0.01")
+      .col-md-3
+        label.form-label Full Name
+        input.form-control(name="contractEntity", placeholder="Full Name (contract entity)")
+      .col-md-3
+        label.form-label Contact Name
+        input.form-control(name="contactName")
+      .col-md-3
+        .form-check
+          input.form-check-input(type="checkbox", name="myInfo", value="Y")
+          label.form-check-label Is My Info
+    .row
+      .col-md-4
+        label.form-label Address Line 1
+        input.form-control(name="address1")
+    .row
+      .col-md-4
+        label.form-label Address Line 2 (optional)
+        input.form-control(name="address2")
+    .row
+      .col-md-4
+        label.form-label Address Line 3 (optional)
+        input.form-control(name="address3")
+    .row
+      .col-md-4
+        label.form-label Address Line 4 (optional)
+        input.form-control(name="address4")
+    .row
+      .col-md-3
+        label.form-label Phone (optional)
+        input.form-control(name="phone")
+      .col-md-3
+        label.form-label Email (optional)
+        input.form-control(type="email",name="email")
     button.btn.btn-primary(type="submit") Add

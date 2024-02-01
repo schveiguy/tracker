@@ -20,11 +20,24 @@ import slf4d;
 
 enum databaseName = "timedata.sqlite";
 
+//@safe: // this breaks too many things...
+
 struct Client
 {
     @primaryKey @autoIncrement int id = -1;
     string name;
-    Nullable!Rate defaultRate;
+
+    bool myInfo; // is this my info
+    @allowNull {
+        string contractEntity; // entity to print on invoice
+        string contactName; // person's name
+        string address1;
+        string address2;
+        string address3;
+        string address4;
+        string phone;
+        string email;
+    }
 
     static @refersTo!TimeTask @mapping("client_id") Relation tasks;
     static @refersTo!Project @mapping("client_id") Relation projects;
@@ -35,6 +48,7 @@ struct Project
     @primaryKey @autoIncrement int id = -1;
     @mustReferTo!Client("client") int client_id;
     string name;
+    Rate rate;
 
     static @refersTo!TimeTask @mapping("project_id") Relation tasks;
 }
@@ -43,11 +57,23 @@ struct TimeTask
 {
     @primaryKey @autoIncrement int id = -1;
     @mustReferTo!Client("client") int client_id;
-    @refersTo!Project("project") Nullable!int project_id;
-    Nullable!Rate rate;
+    @refersTo!Project("project") int project_id;
     DateTime start;
     Nullable!DateTime stop;
     string comment;
+    @refersTo!Invoice("invoice") Nullable!int invoice_id;
+}
+
+struct Invoice
+{
+    @primaryKey @autoIncrement int id = -1;
+    @mustReferTo!Client("client") int client_id;
+    @mustReferTo!Client("myInfo") int my_client_id;
+    Date invoiceDate;
+    string invoiceNumber;
+    string comment;
+
+    static @refersTo!TimeTask @mapping("invoice_id") Relation tasks;
 }
 
 struct MigrationRecord
@@ -65,22 +91,14 @@ struct Rate
     }
 
     this(string rate) {
-        assert(rate.length > 0);
-        auto segments = rate.splitter(".");
-        amount = segments.front.to!int * 100;
-        segments.popFront;
-        if(!segments.empty)
-            amount += segments.front.to!int;
-    }
-
-    static Nullable!Rate parse(string rate)
-    {
-        if(rate.length == 0)
-            return Nullable!Rate.init;
-        auto r = Rate(rate);
-        if(r.amount == 0)
-            return Nullable!Rate.init;
-        return r.nullable;
+        if(rate.length > 0)
+        {
+            auto segments = rate.splitter(".");
+            amount = segments.front.to!int * 100;
+            segments.popFront;
+            if(!segments.empty)
+                amount += segments.front.to!int;
+        }
     }
 
     int dbValue() => amount;
@@ -90,14 +108,37 @@ struct Rate
     }
 
     void toString(Out)(ref Out output) {
-        output.formattedWrite("%d.%02d", amount / 100, amount % 100);
+        output.formattedWrite("%,d.%02d", amount / 100, amount % 100);
     }
 
-    void toJSON(scope void delegate(const(char)[]) w)
+    void toJSON(scope void delegate(const(char)[]) @safe w)
     {
         toString(w);
     }
+
+    Rate opBinary(string s : "*")(Duration d)
+    {
+        int hours, seconds;
+        d.split!("hours", "seconds")(hours, seconds);
+        int amt = hours * amount;
+        amt += cast(int)((long(seconds) * amount) / 3600);
+        return Rate(amt);
+    }
+
+    void opOpAssign(string s : "+")(Rate r)
+    {
+        amount += r.amount;
+    }
+    
+    Rate opBinary(string s : "+")(Rate r)
+    {
+        return Rate(mixin("amount ", s, "r.amount"));
+    }
 }
+
+// set to true if newly created sqlite database, all migrations are
+// assumed to be applied.
+bool assumeAllMigrations;
 
 Database openDB()
 {
@@ -109,30 +150,74 @@ Database openDB()
         db.execute(createTableSql!(Project, true));
         db.execute(createTableSql!(Client, true));
         db.execute(createTableSql!(MigrationRecord, true));
+        db.execute(createTableSql!(Invoice, true));
+        assumeAllMigrations = true;
     }
     return db;
+}
+
+struct MigrationComponent
+{
+    void delegate(Database) operation;
+    string statement;
+
+    this(void delegate(Database) operation)
+    {
+        this.operation = operation;
+    }
+
+    this(string statement)
+    {
+        this.statement = statement;
+    }
+
+
+    void apply(Database db)
+    {
+        if(operation is null)
+            db.execute(statement);
+        else
+            operation(db);
+    }
+
+    void doMD5(ref MD5 md5) @safe
+    {
+        if(operation !is null)
+        {
+            // put something in there to denote a delegate is present here.
+            ubyte[2] data = [0xaa, 0x55];
+            md5.put(data[]);
+        }
+        else
+        {
+            md5.put(cast(const(ubyte[]))statement);
+        }
+    }
 }
 
 struct Migration
 {
     string name;
-    void delegate(Database) preStatement;
-    string[] statements;
-    void delegate(Database) postStatement;
+    MigrationComponent[] items;
     bool applied;
 
-    string getMD5()
+    void add(void delegate(Database) operation)
+    {
+        items ~= MigrationComponent(operation);
+    }
+
+    void add(string statement)
+    {
+        items ~= MigrationComponent(statement);
+    }
+
+
+    string getMD5() @safe
     {
         MD5 md5;
-        // md5 a 1 if a delegate is non-null. We can't md5 the contents of
-        // the function unfortunately.
-        ubyte[2] delegateFlag;
-        delegateFlag[0] = preStatement is null ? 0x55 : 0xaa;
-        delegateFlag[1] = postStatement is null ? 0x55 : 0xaa;
-        md5.put(delegateFlag[]);
+        foreach(ref it; items)
+            it.doMD5(md5);
         md5.put(cast(const(ubyte)[])name);
-        foreach(s; statements)
-            md5.put(cast(const(ubyte)[])s);
         auto result = md5.finish;
         return format("%(%02x%)", result[]);
     }
@@ -140,11 +225,15 @@ struct Migration
 
 void applyMigrations()
 {
-    Migration[] migrations;
-
-    migrations ~= dateTimeTypeMigration();
+    auto migrations = [
+        dateTimeTypeMigration(),
+        moveRateToProjectMigration(),
+        addCompanyDetails(),
+        addInvoiceTable(),
+    ];
 
     auto db = openDB();
+
     // first, ensure the migration table itself exists
     db.execute(createTableSql!(MigrationRecord, true, true));
 
@@ -192,13 +281,16 @@ void applyMigrations()
     {
         if(m.applied)
             continue;
-        infoF!"Applying migration %s - %s"(idx + 1, m.name);
-        if(m.preStatement)
-            m.preStatement(db);
-        foreach(s; m.statements)
-            db.execute(s);
-        if(m.postStatement)
-            m.postStatement(db);
+        if(assumeAllMigrations)
+        {
+            infoF!"Assuming migration %s - %s is applied"(idx + 1, m.name);
+        }
+        else
+        {
+            infoF!"Applying migration %s - %s"(idx + 1, m.name);
+            foreach(ref it; m.items)
+                it.apply(db);
+        }
 
         // the migration was applied, add it to the database
         MigrationRecord mr;
@@ -221,7 +313,7 @@ Migration dateTimeTypeMigration()
     }
     Migration result;
     result.name = __FUNCTION__;
-    result.preStatement = (Database db) {
+    result.add((Database db) {
         DataSet!OldTimeTask ds;
         OldTimeTask[] results = db.fetch(select(ds)).array;
         foreach(ref r; results)
@@ -231,6 +323,59 @@ Migration dateTimeTypeMigration()
                 r.stop = DateTime.fromSimpleString(r.stop.get).toISOExtString;
             db.save(r);
         }
-    };
+    });
+    return result;
+}
+
+// move the default rate to the rate of each project. The project should define
+// the rate, and not each task.
+Migration moveRateToProjectMigration()
+{
+    Migration result;
+    result.name = __FUNCTION__;
+    result.add(`CREATE TABLE Project2 ("id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "client_id" INTEGER NOT NULL, "name" TEXT NOT NULL, "rate" INT NOT NULL, FOREIGN KEY ("client_id") REFERENCES "Client" ("id"))`);
+    result.add(`INSERT INTO Project2 SELECT Project.*, Client.defaultRate FROM Project LEFT JOIN Client ON (Client.id = Project.client_id)`);
+    result.add(`DROP TABLE Project`);
+    result.add(`ALTER TABLE Project2 RENAME TO Project`);
+    result.add(`ALTER TABLE Client DROP COLUMN defaultRate`);
+    result.add(`ALTER TABLE TimeTask DROP COLUMN rate`);
+    return result;
+}
+
+Migration addCompanyDetails()
+{
+    Migration result;
+    result.name = __FUNCTION__;
+    result.add(`ALTER TABLE Client ADD COLUMN myInfo INTEGER NOT NULL DEFAULT 0`);
+    result.add(`ALTER TABLE Client ADD COLUMN contractEntity TEXT`);
+    result.add(`ALTER TABLE Client ADD COLUMN contactName TEXT`);
+    result.add(`ALTER TABLE Client ADD COLUMN address1 TEXT`);
+    result.add(`ALTER TABLE Client ADD COLUMN address2 TEXT`);
+    result.add(`ALTER TABLE Client ADD COLUMN address3 TEXT`);
+    result.add(`ALTER TABLE Client ADD COLUMN address4 TEXT`);
+    result.add(`ALTER TABLE Client ADD COLUMN phone TEXT`);
+    result.add(`ALTER TABLE Client ADD COLUMN email TEXT`);
+    return result;
+}
+
+Migration addInvoiceTable()
+{
+    Migration result;
+    result.name = __FUNCTION__;
+    // copied from original invoice table
+    static struct Invoice
+    {
+        @primaryKey @autoIncrement int id = -1;
+        @mustReferTo!Client("client") int client_id;
+        @mustReferTo!Client("myInfo") int my_client_id;
+        DateTime invoiceDate;
+        string invoiceNumber;
+        string comment;
+
+        static @refersTo!TimeTask @mapping("invoice_id") Relation tasks;
+    }
+
+    result.add(createTableSql!(Invoice, true));
+    result.add(`ALTER TABLE TimeTask ADD COLUMN invoice_id INTEGER`);
     return result;
 }

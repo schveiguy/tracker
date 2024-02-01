@@ -21,6 +21,8 @@ body
             a.nav-link(href="/clients") Clients
           li.nav-item
             a.nav-link(href="/projects") Projects
+          li.nav-item
+            a.nav-link(href="/invoices") Invoices
   div.container-fluid
     block content
     #footer
