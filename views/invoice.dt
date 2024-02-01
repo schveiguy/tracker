@@ -24,9 +24,19 @@ html
       td.quantity, th.quantity {
         text-align: right;
       }
+
+      .pagebreak {
+        break-before: page;
+      }
+
+      @media print {
+        .navbar { display: none !important;}
+      }
   body
+    include navbar
     - import std.uni : asUpperCase;
     - import tracker.app : DurationPrinter, HourFraction;
+    - import std.algorithm : chunkBy;
     div.container-fluid
       - if(model.isDelete)
         h2 Delete invoice id #{model.invoice.id}
@@ -95,7 +105,6 @@ html
                 th.quantity #{model.totalHours}
                 th &nbsp;
                 th.quantity $#{model.totalCost}
-                
       .row
         .col-3
         .col-9
@@ -103,3 +112,30 @@ html
           p Sincerely yours,
 
           p #{model.myInfo.contactName}
+      .row.pagebreak
+        .col
+          h2 Daily Hour Log
+      .row
+        .col
+          table.table.table-summary.table-bordered
+            thead
+              tr
+                th Date
+                th Project
+                th Hours worked
+            tbody
+              - foreach(hlog; model.hourLog)
+                tr
+                  td #{hlog.date}
+                  td #{model.projectLookup[hlog.projectid].name}
+                  td #{DurationPrinter(hlog.duration)}
+      .row.pagebreak
+        .col
+          h2 Tasks Worked
+      .row
+        .col
+          - foreach(tdlist; model.descriptions.chunkBy!((d1, d2) => d1.projectid == d2.projectid))
+            h4 #{model.projectLookup[tdlist.front.projectid].name}:
+            ul
+              - foreach(td; tdlist)
+                li #{td.description}

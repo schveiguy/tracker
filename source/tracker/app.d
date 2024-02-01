@@ -123,7 +123,7 @@ struct IndexViewModel
     Duration totalPaidTime;
     Rate totalAmount;
 
-    void recordStats()
+    void calculateStats()
     {
         foreach(ref task; allTasks)
         {
@@ -178,6 +178,9 @@ struct ShowInvoiceViewModel
     Client client;
     Client myInfo;
 
+    LookupById!Project projectLookup;
+
+
     bool isDelete;
 
     // statistics
@@ -192,9 +195,27 @@ struct ShowInvoiceViewModel
     HourFraction totalHours;
     Rate totalCost;
 
+    struct HourLog
+    {
+        Date date;
+        Duration duration;
+        int projectid;
+    }
+
+    HourLog[] hourLog;
+
+    struct TaskDescription
+    {
+        int projectid;
+        string description;
+    }
+
+    TaskDescription[] descriptions;
+
     void buildSummaryData(TimeTask[] tasks, Project[] projects)
     {
         TaskSummary[int] summariesByProject;
+        projectLookup = projects.fieldLookup!"id";
         foreach(p; projects)
             if(p.rate.amount > 0)
                 summariesByProject[p.id] = TaskSummary(p.name, p.rate);
@@ -222,7 +243,23 @@ struct ShowInvoiceViewModel
             }
         }
 
-        // TODO: summarize by project by day
+        // generate the hour logs
+        tasks.sort!((t1, t2) => t1.start < t2.start);
+        Duration[Date][int] logMap;
+        bool[TaskDescription] descMap;
+        foreach(t; tasks)
+        {
+            logMap.require(t.project_id).require(t.start.date) += t.stop.get - t.start;
+            if(t.comment.length > 0)
+                descMap[TaskDescription(t.project_id, t.comment)] = true;
+        }
+        foreach(pid, m1; logMap)
+            foreach(date, dur; m1)
+                hourLog ~= HourLog(date, dur, pid);
+
+        hourLog.sort!((h1, h2) => h1.date == h2.date ? h1.projectid < h2.projectid : h1.date < h2.date);
+        descriptions = descMap.keys;
+        descriptions.sort!((d1, d2) => d1.projectid < d2.projectid);
     }
 }
 
@@ -339,7 +376,7 @@ void runServer(ref HttpRequestContext ctx) {
             model.projectLookup = model.allProjects.fieldLookup!"id";
 
             // record all statistics
-            model.recordStats();
+            model.calculateStats();
             ctx.response.renderDiet!("index.dt", model);
             break;
         case "/timing-event":
