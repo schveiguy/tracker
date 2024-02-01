@@ -12,6 +12,9 @@ html
         color: #367DA2;
         font-size: 30px;
       }
+      body {
+        font-size: small;
+      }
 
       .phone, .email {
         color: #367DA2;
@@ -68,7 +71,8 @@ html
             - if(model.myInfo.address4.length)
               .address #{model.myInfo.address4}
         .col-9
-          p.contact Attention: #{model.client.contactName}
+          - if(model.client.contactName.length)
+            p.contact Attention: #{model.client.contactName}
           p.company-name #{model.client.contractEntity}
           p
             .company-address #{model.client.address1}
