@@ -23,8 +23,6 @@ I do want to add authentication, but I doubt it will ever get HTTPS (unless hand
 ## TODO
 
 * Authentication
-* Export per client/project
-* Export based on regular intervals
-* Statistics with regards to time or percentage targets
-* Possible web page to print to pdf invoicing.
-* Saving of invoices and payment received date.
+* Reminders of invoice times.
+* Marking invoices paid
+* Concrete storage of project info for invoices (currently, changing project info will change historical invoices).
