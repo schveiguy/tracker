@@ -318,7 +318,7 @@ void runServer(ref HttpRequestContext ctx) {
             auto taskQuery = select(tds).where(tds.stop, " IS NOT NULL").orderBy(tds.start.descend);
 
             // get any filtering
-            string forDate = "now";
+            string forDate = "";
             if(auto forDateAlt = ctx.request.queryParams.getFirst("forDate"))
             {
                 if(forDateAlt.value != "")
@@ -326,6 +326,15 @@ void runServer(ref HttpRequestContext ctx) {
                     model.forDate = forDateAlt.value;
                     forDate = forDateAlt.value;
                 }
+            }
+
+            if(forDate == "")
+            {
+                // originally we used 'now', but that always fetches in format
+                // YYYY-MM-DD HH:MM:SS, and this is not how sqlbuilder stores
+                // datetimes, which uses a T between the date and time.
+                // Therefore, we must construct the current time in the correct format and use that.
+                forDate = (cast(DateTime)Clock.currTime).toISOExtString;
             }
 
             if(auto timePeriod = ctx.request.queryParams.getFirst("period"))
