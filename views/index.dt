@@ -152,7 +152,11 @@ block content
           option(value="month", selected=(model.period == "month")) Month
           option(value="week", selected=(model.period == "week")) Week
           option(value="day", selected=(model.period == "day")) Day
-      .col-md-4
+      .col-md-2
+        .form-check
+          input#notinvoicedfilter.form-check-input(type="checkbox", name="not_invoiced", value="Y", checked=(model.notInvoiced), onchange="this.form.submit()")
+          label.form-check-label(for="notinvoicedfilter") Not Invoiced
+      .col-md-2
         label.form-label For date
         input#date-filter.form-control(type="text", name="forDate", value=(model.forDate))
   .row
@@ -224,6 +228,7 @@ block content
             th Start
             th Stop
             th Duration
+            th Invoice
             th Comment
             th
         tbody
@@ -241,6 +246,11 @@ block content
               td #{task.start}
               td #{task.stop.get}
               td #{DurationPrinter(task.stop.get - task.start)}
+              td
+                - if(task.invoice_id.isNull)
+                  | &nbsp;
+                - else
+                  a(href="/invoice?invoiceid=#{task.invoice_id.get}") #{model.invoiceLookup[task.invoice_id.get].invoiceNumber}
               td #{task.comment}
               td
                 - if(task.invoice_id.isNull)

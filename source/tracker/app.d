@@ -108,12 +108,14 @@ struct IndexViewModel
     LookupById!Client clientLookup;
     Project[] allProjects;
     LookupById!Project projectLookup;
+    LookupById!Invoice invoiceLookup;
 
     // filtering
     string period;
     string forDate;
     int client_id;
     int project_id;
+    bool notInvoiced;
 
     // statistics
     Duration[Rate] rateTimeSpent;
@@ -377,12 +379,20 @@ void runServer(ref HttpRequestContext ctx) {
                 }
             }
 
+            if(ctx.request.queryParams.getFirst("not_invoiced").orElse("N") == "Y")
+            {
+                model.notInvoiced = true;
+                taskQuery = taskQuery.where(tds.invoice_id, " IS NULL");
+            }
+
             model.allTasks = db.fetch(taskQuery).array;
             model.currentTask = getUnfinishedTask(db);
             model.allClients = db.fetch(select(cds).orderBy(cds.name)).array;
             model.clientLookup = model.allClients.fieldLookup!"id";
             model.allProjects = db.fetch(select(pds).orderBy(pds.name)).array;
             model.projectLookup = model.allProjects.fieldLookup!"id";
+            auto invoices = db.fetch(select(ids)).array;
+            model.invoiceLookup = invoices.fieldLookup!"id";
 
             // record all statistics
             model.calculateStats();
