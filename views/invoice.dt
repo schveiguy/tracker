@@ -135,7 +135,7 @@ html
                   td #{DurationPrinter(hlog.duration)}
       .row.pagebreak
         .col
-          h2 Tasks Worked
+          h2 Project Log
       .row
         .col
           - foreach(tdlist; model.descriptions.chunkBy!((d1, d2) => d1.projectid == d2.projectid))
