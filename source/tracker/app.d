@@ -218,14 +218,15 @@ struct ShowInvoiceViewModel
     {
         TaskSummary[int] summariesByProject;
         projectLookup = projects.fieldLookup!"id";
-        foreach(p; projects)
-            if(p.rate.amount > 0)
-                summariesByProject[p.id] = TaskSummary(p.name, p.rate);
 
         foreach(t; tasks)
         {
-            if(auto ps = t.project_id in summariesByProject)
+            if(t.invoiceRate.get(Rate.init).amount > 0)
             {
+                auto ps = &summariesByProject.require(t.project_id,
+                            TaskSummary(projectLookup[t.project_id].name,
+                                t.invoiceRate.get));
+                enforce(ps.rate == t.invoiceRate.get, "Invoice project has varying rates");
                 ps.duration += t.stop.get - t.start;
             }
         }
@@ -234,14 +235,11 @@ struct ShowInvoiceViewModel
         {
             if(auto ps = p.id in summariesByProject)
             {
-                if(ps.duration != Duration.zero)
-                {
-                    auto hf = HourFraction(ps.duration);
-                    ps.cost = hf.calculateCost(ps.rate);
-                    taskSummaries ~= *ps;
-                    totalHours.units += hf.units;
-                    totalCost += ps.cost;
-                }
+                auto hf = HourFraction(ps.duration);
+                ps.cost = hf.calculateCost(ps.rate);
+                taskSummaries ~= *ps;
+                totalHours.units += hf.units;
+                totalCost += ps.cost;
             }
         }
 
@@ -499,7 +497,12 @@ void runServer(ref HttpRequestContext ctx) {
             newInvoice.my_client_id = db.fetchOne(select(cds.id).where(cds.myInfo, " = TRUE"));
             auto client = db.fetchUsingKey!Client(newInvoice.client_id);
             enforce(taskids.length > 0, "Need at least one task to invoice");
-            enforce(db.fetchOne(select(count(tds.id)).where(format("ID IN (%(%s,%)) AND client_id = ", taskids), newInvoice.client_id.param, " AND invoice_id IS NULL")) == taskids.length,
+            auto inIdSet = format(" IN (%(%s,%))", taskids);
+            enforce(db.fetchOne(select(count(tds.id))
+                        .where(tds.id, inIdSet)
+                        .where(tds.client_id, " = ", newInvoice.client_id.param)
+                        .where(tds.invoice_id, " IS NULL")
+                        .where(tds.project.rate, " > 0")) == taskids.length,
                 "Invoice inconsistency detected!");
 
             newInvoice.invoiceDate = cast(Date)Clock.currTime();
@@ -518,7 +521,7 @@ void runServer(ref HttpRequestContext ctx) {
             // create the invoice
             db.create(newInvoice);
             // now assign all the tasks to the invoice
-            db.perform(set(tds.invoice_id, newInvoice.id.param).where(tds.id, format(" IN (%(%s,%))", taskids)));
+            db.perform(set(tds.invoice_id, newInvoice.id.param).set(tds.invoiceRate, tds.project.rate).where(tds.id, inIdSet));
             ctx.response.redirect(format("/invoice?invoiceid=%s", newInvoice.id));
             break;
         case "/delete-invoice":
@@ -539,7 +542,7 @@ void runServer(ref HttpRequestContext ctx) {
             break;
         case "/process-delete-invoice":
             auto invoice = db.fetchUsingKey!Invoice(ctx.request.queryParams["invoiceid"].to!int);
-            db.perform(set(tds.invoice_id, null.param).where(tds.invoice_id, " = ", invoice.id.param));
+            db.perform(set(tds.invoice_id, Expr("NULL")).set(tds.invoiceRate, Expr("NULL")).where(tds.invoice_id, " = ", invoice.id.param));
             db.erase(invoice);
             ctx.response.redirect("/invoices");
             break;

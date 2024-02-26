@@ -9,9 +9,9 @@
 		"iopipe": "0.2.5",
 		"jsoniopipe": "0.2.7",
 		"lookuptable": "0.1.4",
-		"path-matcher": "1.1.3",
+		"path-matcher": "1.1.4",
 		"slf4d": "2.4.3",
-		"sqlbuilder": "0.2.1",
+		"sqlbuilder": "0.2.2",
 		"streams": "3.5.0"
 	}
 }

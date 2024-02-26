@@ -12,7 +12,7 @@ html
         color: #367DA2;
         font-size: 30px;
       }
-      body {
+      #mainpage {
         font-size: small;
       }
 
@@ -40,7 +40,7 @@ html
     - import std.uni : asUpperCase;
     - import tracker.app : DurationPrinter, HourFraction;
     - import std.algorithm : chunkBy;
-    div.container-fluid
+    div#mainpage.container-fluid
       - if(model.isDelete)
         h2 Delete invoice id #{model.invoice.id}
         .row

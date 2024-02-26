@@ -62,6 +62,9 @@ struct TimeTask
     Nullable!DateTime stop;
     string comment;
     @refersTo!Invoice("invoice") Nullable!int invoice_id;
+
+    // once a time task is part of an invoice, the rate is locked.
+    Nullable!Rate invoiceRate;
 }
 
 struct Invoice
@@ -230,6 +233,7 @@ void applyMigrations()
         moveRateToProjectMigration(),
         addCompanyDetails(),
         addInvoiceTable(),
+        pinTaskRatesForInvoices(),
     ];
 
     auto db = openDB();
@@ -275,6 +279,7 @@ void applyMigrations()
     scope(failure)
     {
         db.close();
+        infoF!"Reverting database migrations..."();
         std.file.copy(backupDBName, databaseName);
     }
     foreach(idx, ref m; migrations)
@@ -377,5 +382,14 @@ Migration addInvoiceTable()
 
     result.add(createTableSql!(Invoice, true));
     result.add(`ALTER TABLE TimeTask ADD COLUMN invoice_id INTEGER`);
+    return result;
+}
+
+Migration pinTaskRatesForInvoices()
+{
+    Migration result;
+    result.name = __FUNCTION__;
+    result.add(`ALTER TABLE TimeTask ADD COLUMN invoiceRate INTEGER`);
+    result.add(`UPDATE TimeTask SET invoiceRate = Project.rate FROM Project WHERE TimeTask.invoice_id IS NOT NULL AND Project.id = TimeTask.project_id`);
     return result;
 }
