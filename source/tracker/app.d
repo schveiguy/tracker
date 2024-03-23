@@ -33,6 +33,7 @@ import std.format;
 import std.exception;
 import std.getopt;
 import std.uni;
+import std.range;
 
 import iopipe.json.serialize;
 
@@ -82,6 +83,10 @@ struct HourFraction
     Rate calculateCost(Rate perHour)
     {
         return Rate((perHour.amount * units + 50) / 100);
+    }
+
+    bool opCast(T : bool)() {
+        return units != 0;
     }
 }
 
@@ -214,6 +219,8 @@ struct ShowInvoiceViewModel
 
     TaskDescription[] descriptions;
 
+    InvoiceExtra[] extras;
+
     void buildSummaryData(TimeTask[] tasks, Project[] projects)
     {
         TaskSummary[int] summariesByProject;
@@ -260,6 +267,10 @@ struct ShowInvoiceViewModel
         hourLog.sort!((h1, h2) => h1.date == h2.date ? h1.projectid < h2.projectid : h1.date < h2.date);
         descriptions = descMap.keys;
         descriptions.sort!((d1, d2) => d1.projectid < d2.projectid);
+
+        // add in the extras
+        foreach(ext; extras)
+            totalCost += ext.amount * ext.quantity;
     }
 }
 
@@ -305,6 +316,7 @@ void runServer(ref HttpRequestContext ctx) {
     DataSet!Client cds;
     DataSet!Project pds;
     DataSet!Invoice ids;
+    DataSet!InvoiceExtra ieds;
 
     TimeTask getUnfinishedTask(Database db) => db.fetchOne(select(tds).where(tds.stop, " IS NULL"), TimeTask.init);
 
@@ -493,10 +505,18 @@ void runServer(ref HttpRequestContext ctx) {
             Invoice newInvoice;
             int[] taskids;
             taskids = postdata.getAll("tasks[]").map!(tid => tid.to!int).array;
+            InvoiceExtra[] extras = zip(StoppingPolicy.requireSameLength,
+                    postdata.getAll("extras_rate[]").map!(rate => Rate(rate)),
+                    postdata.getAll("extras_quantity[]").map!(qty => qty.to!int),
+                    postdata.getAll("extras_description[]"))
+                .map!(tup => InvoiceExtra(-1, -1, tup.expand))
+                .filter!(ext => ext.description.length > 0)
+                .array;
             newInvoice.client_id = postdata["client_id"].to!int;
             newInvoice.my_client_id = db.fetchOne(select(cds.id).where(cds.myInfo, " = TRUE"));
             auto client = db.fetchUsingKey!Client(newInvoice.client_id);
-            enforce(taskids.length > 0, "Need at least one task to invoice");
+
+            enforce(taskids.length > 0 || extras.length > 0, "Need at least one task or extra to invoice");
             auto inIdSet = format(" IN (%(%s,%))", taskids);
             enforce(db.fetchOne(select(count(tds.id))
                         .where(tds.id, inIdSet)
@@ -522,6 +542,12 @@ void runServer(ref HttpRequestContext ctx) {
             db.create(newInvoice);
             // now assign all the tasks to the invoice
             db.perform(set(tds.invoice_id, newInvoice.id.param).set(tds.invoiceRate, tds.project.rate).where(tds.id, inIdSet));
+            // create each extra
+            foreach(ref ext; extras)
+            {
+                ext.invoice_id = newInvoice.id;
+                db.create(ext);
+            }
             ctx.response.redirect(format("/invoice?invoiceid=%s", newInvoice.id));
             break;
         case "/delete-invoice":
@@ -533,6 +559,7 @@ void runServer(ref HttpRequestContext ctx) {
             model.invoice = data[0];
             model.client = data[1];
             model.myInfo = data[2];
+            model.extras = db.fetch(select(ieds).where(ieds.invoice_id, " = ", model.invoice.id.param)).array;
 
             // get the data to build the summaries
             auto tasks = db.fetch(select(tds).where(tds.invoice_id, " = ", model.invoice.id.param)).array;
@@ -543,6 +570,7 @@ void runServer(ref HttpRequestContext ctx) {
         case "/process-delete-invoice":
             auto invoice = db.fetchUsingKey!Invoice(ctx.request.queryParams["invoiceid"].to!int);
             db.perform(set(tds.invoice_id, Expr("NULL")).set(tds.invoiceRate, Expr("NULL")).where(tds.invoice_id, " = ", invoice.id.param));
+            db.perform(removeFrom(ieds.tableDef).where(ieds.invoice_id, " = ", invoice.id.param));
             db.erase(invoice);
             ctx.response.redirect("/invoices");
             break;

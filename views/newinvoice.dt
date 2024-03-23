@@ -28,6 +28,14 @@ block extraJs
     if(fp.mobileInput) {
       fp.mobileInput.setAttribute("step", "any");
     }
+
+    function addExtraRow() {
+      let extras = document.getElementById('extras-container');
+      let prototype = document.getElementById('extras-prototype');
+      let newrow = prototype.cloneNode(true);
+      newrow.id = '';
+      extras.appendChild(newrow);
+    }
 block content
   - import tracker.app : DurationPrinter;
   h2 Add New Invoice
@@ -40,7 +48,10 @@ block content
             option(value=(client.id)) #{client.id} - #{client.name}
       .col-md-2
         label.form-label Invoice Date
-        input#invoice-date.form-input.flatpickr(name="invoiceDate")
+        input#invoice-date.form-control.flatpickr(name="invoiceDate")
+      .col-md-2
+        label.form-label Invoice Number
+        input.form-control(name="invoiceNum")
     h3 Pick Tasks to Invoice
     .table-responsive
       table.table
@@ -65,6 +76,28 @@ block content
               td #{model.projectLookup[task.project_id].name}
               td #{DurationPrinter(task.stop.get - task.start)}
               td #{task.comment}
+    h3 Extras
+    .table-responsive
+      table.table
+        thead
+          tr
+            th Description
+            th Quantity
+            th Amount
+        tbody#extras-container
+        tbody
+          tr
+            td(colspan=3)
+              button.btn.btn-primary(type="button",onclick="addExtraRow()") +
     div.btn-group
       button.btn.btn-primary(type="submit") Create New Invoice
       a.btn.btn-secondary(href="/invoices") Cancel
+  table.hidden
+    tbody
+      tr#extras-prototype
+        td
+          input.form-control(name="extras_description[]", placeholder="Extra description")
+        td
+          input.form-control(type="number", name="extras_quantity[]", value="1")
+        td
+          input.form-control(type="number", name="extras_rate[]", step="0.01", value="0")

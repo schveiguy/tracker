@@ -104,42 +104,54 @@ html
                   td.quantity #{HourFraction(ts.duration)}
                   td.quantity $#{ts.rate}
                   td.quantity $#{ts.cost}
+              - foreach(ext; model.extras)
+                tr
+                  td #{ext.description}
+                  td.quantity #{ext.quantity}
+                  td.quantity $#{ext.amount}
+                  td.quantity $#{ext.amount * ext.quantity}
               tr
                 th.quantity Total
-                th.quantity #{model.totalHours}
+                th.quantity
+                  - if(model.totalHours)
+                    | #{model.totalHours} Hrs
                 th &nbsp;
                 th.quantity $#{model.totalCost}
       .row
         .col-3
         .col-9
-          p Thank you for your business. Detailed log of hours worked is included on remaining pages.
+          p
+            | Thank you for your business.
+            - if(model.totalHours)
+              |  Detailed log of hours worked is included on remaining pages.
           p Sincerely yours,
 
           p #{model.myInfo.contactName}
-      .row.pagebreak
-        .col
-          h2 Daily Hour Log
-      .row
-        .col
-          table.table.table-summary.table-bordered
-            thead
-              tr
-                th Date
-                th Project
-                th Hours worked
-            tbody
-              - foreach(hlog; model.hourLog)
+      - if(model.totalHours)
+        .row.pagebreak
+          .col
+            h2 Daily Hour Log
+        .row
+          .col
+            table.table.table-summary.table-bordered
+              thead
                 tr
-                  td #{hlog.date}
-                  td #{model.projectLookup[hlog.projectid].name}
-                  td #{DurationPrinter(hlog.duration)}
-      .row.pagebreak
-        .col
-          h2 Project Log
-      .row
-        .col
-          - foreach(tdlist; model.descriptions.chunkBy!((d1, d2) => d1.projectid == d2.projectid))
-            h4 #{model.projectLookup[tdlist.front.projectid].name}:
-            ul
-              - foreach(td; tdlist)
-                li #{td.description}
+                  th Date
+                  th Project
+                  th Hours worked
+              tbody
+                - foreach(hlog; model.hourLog)
+                  tr
+                    td #{hlog.date}
+                    td #{model.projectLookup[hlog.projectid].name}
+                    td #{DurationPrinter(hlog.duration)}
+        .row.pagebreak
+          .col
+            h2 Project Log
+        .row
+          .col
+            - foreach(tdlist; model.descriptions.chunkBy!((d1, d2) => d1.projectid == d2.projectid))
+              h4 #{model.projectLookup[tdlist.front.projectid].name}:
+              ul
+                - foreach(td; tdlist)
+                  li #{td.description}

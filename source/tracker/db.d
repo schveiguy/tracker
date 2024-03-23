@@ -77,6 +77,16 @@ struct Invoice
     string comment;
 
     static @refersTo!TimeTask @mapping("invoice_id") Relation tasks;
+    static @refersTo!InvoiceExtra @mapping("invoice_id") Relation extras;
+}
+
+struct InvoiceExtra
+{
+    @primaryKey @autoIncrement int id = -1;
+    @mustReferTo!Invoice("invoice") int invoice_id;
+    Rate amount;
+    int quantity = 1;
+    string description;
 }
 
 struct MigrationRecord
@@ -126,6 +136,11 @@ struct Rate
         int amt = hours * amount;
         amt += cast(int)((long(seconds) * amount) / 3600);
         return Rate(amt);
+    }
+
+    Rate opBinary(string s : "*")(int d)
+    {
+        return Rate(amount * d);
     }
 
     void opOpAssign(string s : "+")(Rate r)
@@ -234,6 +249,7 @@ void applyMigrations()
         addCompanyDetails(),
         addInvoiceTable(),
         pinTaskRatesForInvoices(),
+        addInvoiceExtras(),
     ];
 
     auto db = openDB();
@@ -391,5 +407,22 @@ Migration pinTaskRatesForInvoices()
     result.name = __FUNCTION__;
     result.add(`ALTER TABLE TimeTask ADD COLUMN invoiceRate INTEGER`);
     result.add(`UPDATE TimeTask SET invoiceRate = Project.rate FROM Project WHERE TimeTask.invoice_id IS NOT NULL AND Project.id = TimeTask.project_id`);
+    return result;
+}
+
+Migration addInvoiceExtras()
+{
+    Migration result;
+    result.name = __FUNCTION__;
+    static struct InvoiceExtra
+    {
+        @primaryKey @autoIncrement int id = -1;
+        Rate amount;
+        int quantity = 1;
+        @mustReferTo!Invoice("invoice") int invoice_id;
+        string description;
+    }
+
+    result.add(createTableSql!(InvoiceExtra, true));
     return result;
 }
