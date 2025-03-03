@@ -152,6 +152,12 @@ struct Rate
     {
         return Rate(mixin("amount ", s, "r.amount"));
     }
+
+    int opCmp(Rate other)
+    {
+        // could be better...
+        return amount < other.amount ? -1 : amount > other.amount ? 1 : 0;
+    }
 }
 
 // set to true if newly created sqlite database, all migrations are

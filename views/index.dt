@@ -1,9 +1,4 @@
 extends layout
-block extraCss
-  style.
-    .hidden {
-      display: none !important;
-    }
 block extraJs
   - import iopipe.json.serialize;
   - import std.datetime.systime;
@@ -19,12 +14,16 @@ block extraJs
       document.querySelectorAll('#project-selector option').forEach((opt) => {
         if(opt.getAttribute('data-client') == clientId)
         {
-          opt.classList.remove('hidden');
+          opt.removeAttribute('hidden');
+          opt.removeAttribute('disabled');
           if(opt.value == curProject || !firstValue)
             firstValue = opt.value;
         }
         else
-          opt.classList.add('hidden');
+        {
+          opt.setAttribute('hidden', '');
+          opt.setAttribute('disabled', '');
+        }
       });
       document.getElementById('project-selector').value = firstValue;
     }
@@ -148,7 +147,8 @@ block content
       .col-md-2
         label.form-label Period
         select.form-select(name="period", onchange="this.form.submit()")
-          option(value="") All
+          option(value="all", selected=(model.period == "all")) All
+          option(value="year", selected=(model.period == "year")) Year
           option(value="month", selected=(model.period == "month")) Month
           option(value="week", selected=(model.period == "week")) Week
           option(value="day", selected=(model.period == "day")) Day
@@ -162,10 +162,13 @@ block content
   .row
     .col-md-2 Time spent: #{DurationPrinter(model.totalTimeSpent)}
     .col-md-2 Paid Time spent: #{DurationPrinter(model.totalPaidTime)}
-    .col-md-2 Total amount: $#{model.totalAmount}
   h2 Details
     button.btn.btn.primary-outline(type="button", data-bs-toggle="collapse", data-bs-target="#stats", aria-expanded="false", aria-controls="stats") &darr;
   div#stats.collapse
+    .row
+      .col-md-2
+        | Total amount:
+        b $#{model.totalAmount}
     h3 By Client
     .table-responsive
       table.table.table-striped
@@ -181,7 +184,7 @@ block content
                 td #{client.id}
                 td #{client.name}
                 td #{DurationPrinter(*dur)}
-    h3 By Project
+    h3 By Project/Rate
     .table-responsive
       table.table.table-striped
         thead
@@ -194,14 +197,16 @@ block content
             th Total Amount
         tbody
           - foreach(project; model.allProjects)
-            - if(auto dur = project.id in model.projectTimeSpent)
-              tr
-                td #{project.id}
-                td #{model.clientLookup[project.client_id].name}
-                td #{project.name}
-                td $#{project.rate}
-                td #{DurationPrinter(*dur)}
-                td $#{project.rate * (*dur)}
+            - if(auto rates = project.id in model.projectTimeSpent)
+              - foreach(rate; model.allRates)
+                - if(auto dur = rate in *rates)
+                  tr
+                    td #{project.id}
+                    td #{model.clientLookup[project.client_id].name}
+                    td #{project.name}
+                    td $#{rate}
+                    td #{DurationPrinter(*dur)}
+                    td $#{rate * (*dur)}
     h3 By Rate
     .table-responsive
       table.table.table-striped
@@ -211,7 +216,8 @@ block content
             th Time Spent
             th Total Amount
         tbody
-          - foreach(r, dur; model.rateTimeSpent)
+          - foreach(r; model.allRates)
+            - auto dur = model.rateTimeSpent[r];
             tr
               td $#{r}
               td #{DurationPrinter(dur)}
@@ -239,7 +245,9 @@ block content
               td #{model.clientLookup[task.client_id].name}
               td #{project.name}
               td
-                - if(project.rate.amount == 0)
+                - if(!task.invoiceRate.isNull)
+                  | $#{task.invoiceRate.get}
+                - else if(project.rate.amount == 0)
                   | (N/A)
                 - else
                   | $#{project.rate}

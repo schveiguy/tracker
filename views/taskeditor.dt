@@ -1,9 +1,5 @@
 extends layout
 block extraCss
-  style.
-    .hidden {
-      display: none !important;
-    }
 block extraJs
   - import iopipe.json.serialize;
   - import std.datetime.systime;
@@ -17,12 +13,16 @@ block extraJs
       document.querySelectorAll('#project-selector option').forEach((opt) => {
         if(opt.getAttribute('data-client') == clientId)
         {
-          opt.classList.remove('hidden');
+          opt.removeAttribute('hidden');
+          opt.removeAttribute('disabled');
           if(opt.value == curProject || !firstValue)
             firstValue = opt.value;
         }
         else
-          opt.classList.add('hidden');
+        {
+          opt.setAttribute('hidden', '');
+          opt.setAttribute('disabled', '');
+        }
       });
       document.getElementById('project-selector').value = firstValue;
     }

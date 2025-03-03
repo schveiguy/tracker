@@ -114,6 +114,7 @@ struct IndexViewModel
     Project[] allProjects;
     LookupById!Project projectLookup;
     LookupById!Invoice invoiceLookup;
+    Rate[] allRates;
 
     // filtering
     string period;
@@ -125,7 +126,7 @@ struct IndexViewModel
     // statistics
     Duration[Rate] rateTimeSpent;
     Duration[int] clientTimeSpent;
-    Duration[int] projectTimeSpent;
+    Duration[Rate][int] projectTimeSpent;
     Duration totalTimeSpent;
     Duration totalPaidTime;
     Rate totalAmount;
@@ -137,17 +138,20 @@ struct IndexViewModel
             auto dur = task.stop.get - task.start;
             totalTimeSpent += dur;
             auto project = projectLookup[task.project_id];
-            if(project.rate.amount > 0)
+            auto taskrate = task.invoiceRate.get(project.rate);
+            if(taskrate.amount > 0)
                 totalPaidTime += dur;
-            rateTimeSpent.require(project.rate) += dur;
+            rateTimeSpent.require(taskrate) += dur;
             clientTimeSpent.require(task.client_id) += dur;
-            projectTimeSpent.require(task.project_id) += dur;
+            projectTimeSpent.require(task.project_id).require(taskrate) += dur;
         }
 
         foreach(r, dur; rateTimeSpent)
         {
             totalAmount += r * dur;
         }
+
+        allRates = rateTimeSpent.keys.sort.release;
     }
 }
 
@@ -287,6 +291,12 @@ struct ProjectViewModel
     LookupById!Client clientLookup;
 }
 
+struct ProjectEditModel
+{
+    Project project;
+    Client client;
+}
+
 void renderDiet(Args...)(ref HttpResponse response)
 {
     auto text = appender!string;
@@ -349,26 +359,32 @@ void runServer(ref HttpRequestContext ctx) {
                 forDate = (cast(DateTime)Clock.currTime).toISOExtString;
             }
 
+            model.period = "year";
             if(auto timePeriod = ctx.request.queryParams.getFirst("period"))
             {
                 model.period = timePeriod.value;
-                switch(timePeriod.value)
-                {
-                    case "month":
-                        taskQuery = taskQuery.where(tds.start, " >= DATETIME(", forDate.param, ", 'start of month') AND ",
-                                tds.start, " < DATETIME(", forDate.param, ", 'start of month', '+1 months')");
-                        break;
-                    case "week":
-                        taskQuery = taskQuery.where(tds.start, " >= DATETIME(", forDate.param, ", '-6 days', 'weekday 1') AND ",
-                                tds.start, " < DATETIME(", forDate.param, ", '+1 days', 'weekday 1')");
-                        break;
-                    case "day":
-                        taskQuery = taskQuery.where(tds.start, " >= DATETIME(", forDate.param, ", 'start of day') AND ",
-                                tds.start, " < DATETIME(", forDate.param, ", 'start of day', '+1 days')");
-                        break;
-                    default:
-                        break;
-                }
+            }
+            switch(model.period)
+            {
+                default:
+                case "year":
+                    taskQuery = taskQuery.where(tds.start, " >= DATETIME(", forDate.param, ", 'start of year') AND ",
+                            tds.start, " < DATETIME(", forDate.param, ", 'start of year', '+1 years')");
+                    break;
+                case "month":
+                    taskQuery = taskQuery.where(tds.start, " >= DATETIME(", forDate.param, ", 'start of month') AND ",
+                            tds.start, " < DATETIME(", forDate.param, ", 'start of month', '+1 months')");
+                    break;
+                case "week":
+                    taskQuery = taskQuery.where(tds.start, " >= DATETIME(", forDate.param, ", '-6 days', 'weekday 1') AND ",
+                            tds.start, " < DATETIME(", forDate.param, ", '+1 days', 'weekday 1')");
+                    break;
+                case "day":
+                    taskQuery = taskQuery.where(tds.start, " >= DATETIME(", forDate.param, ", 'start of day') AND ",
+                            tds.start, " < DATETIME(", forDate.param, ", 'start of day', '+1 days')");
+                    break;
+                case "all":
+                    break;
             }
 
             if(auto client_id = ctx.request.queryParams.getFirst("client_id"))
@@ -609,6 +625,12 @@ void runServer(ref HttpRequestContext ctx) {
             model.clientLookup = model.allClients.fieldLookup!"id";
             ctx.response.renderDiet!("projects.dt", model);
             break;
+        case "/edit-project":
+            ProjectEditModel model;
+            model.project = db.fetchUsingKey!Project(querydata["projectid"].to!int);
+            model.client = db.fetchUsingKey!Client(model.project.client_id);
+            ctx.response.renderDiet!("projecteditor.dt", model);
+            break;
         case "/add-client":
             Client newClient;
             static foreach(field; ["name", "contractEntity", "contactName", "address1", "address2", "address3", "address4", "phone", "email"])
@@ -628,6 +650,13 @@ void runServer(ref HttpRequestContext ctx) {
             newProject.client_id = postdata["client_id"].to!int;
             newProject.rate = Rate(postdata["rate"]);
             db.create(newProject);
+            ctx.response.redirect("/projects");
+            break;
+        case "/process-edit-project":
+            auto project = db.fetchUsingKey!Project(postdata["projectid"].to!int);
+            project.name = postdata["name"];
+            project.rate = Rate(postdata["rate"]);
+            db.save(project);
             ctx.response.redirect("/projects");
             break;
         default:

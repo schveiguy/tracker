@@ -24,6 +24,7 @@ block content
         th Name
         th Rate
         th Client
+        th
     tbody
       - foreach(project; model.allProjects)
         tr
@@ -31,6 +32,8 @@ block content
           td #{project.name}
           td #{project.rate}
           td #{project.client_id} - #{model.clientLookup[project.client_id].name}
+          td
+            a.btn.btn-primary(href="/edit-project?projectid=#{project.id}") Edit
   h2 Add a project
   form(action="/add-project", method="POST")
     .row
