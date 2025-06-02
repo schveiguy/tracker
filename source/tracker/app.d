@@ -1,5 +1,7 @@
 module tracker.app;
 
+version(Have_symgc) import symgc.gcobj;
+
 import tracker.db;
 
 import handy_httpd;
@@ -442,7 +444,7 @@ void runServer(ref HttpRequestContext ctx) {
                         currentTask.comment = postdata["comment"];
                         currentTask.client_id = postdata["client_id"].to!int;
                         currentTask.project_id = postdata["project_id"].to!int;
-                        currentTask.start = parseDate(postdata["start"]);
+                        currentTask.start = cast(DateTime)SysTime.fromISOExtString(postdata["start"], LocalTime());
                         enforce(currentTask.start < cast(DateTime)Clock.currTime(), "Cannot set start time to later than current time");
                         db.save(currentTask);
                         break;

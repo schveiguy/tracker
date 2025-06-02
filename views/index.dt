@@ -66,6 +66,8 @@ block extraJs
     {
       let fp = flatpickr(startTimeElem,
       {
+        altInput: true,
+        dateFormat: 'Z',
         enableTime: true,
         enableSeconds: true,
         onChange: (range) => {
@@ -223,6 +225,7 @@ block content
               td #{DurationPrinter(dur)}
               td $#{r * dur}
     h3 All Tasks
+    - import std.datetime.systime;
     .table-responsive
       table.table.table-striped.table
         thead
@@ -251,8 +254,8 @@ block content
                   | (N/A)
                 - else
                   | $#{project.rate}
-              td #{task.start}
-              td #{task.stop.get}
+              td.dtelem(data-unixtime="#{SysTime(task.start).toUnixTime}") #{task.start}
+              td.dtelem(data-unixtime="#{SysTime(task.start).toUnixTime}") #{task.stop.get}
               td #{DurationPrinter(task.stop.get - task.start)}
               td
                 - if(task.invoice_id.isNull)
