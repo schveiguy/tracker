@@ -415,6 +415,11 @@ void runServer(ref HttpRequestContext ctx) {
 
             model.allTasks = db.fetch(taskQuery).array;
             model.currentTask = getUnfinishedTask(db);
+            if (model.currentTask.id == -1) {
+                // load the most recent task started, and default the UI to its selections.
+                model.currentTask = db.fetchOne(select(tds).orderBy(tds.id.descend), TimeTask.init);
+                model.currentTask.id = -1;
+            }
             model.allClients = db.fetch(select(cds).orderBy(cds.name)).array;
             model.clientLookup = model.allClients.fieldLookup!"id";
             model.allProjects = db.fetch(select(pds).orderBy(pds.name)).array;
