@@ -7,6 +7,13 @@ block extraJs
     var currentTaskId = !{model.currentTask.id};
     var currentTaskStartTime = new Date(!{SysTime(model.currentTask.start).toUnixTime} * 1000);
 
+    function clearDefaultComment() {
+      let commentElem = document.getElementById('task-comment');
+      if (commentElem.getAttribute('data-default-comment') == commentElem.value) {
+        commentElem.value = '';
+      }
+    }
+
     function setupProjectList() {
       let clientId = document.getElementById('client-selector').value;
       let curProject = document.getElementById('project-selector').value;
@@ -30,6 +37,7 @@ block extraJs
 
     function clientChanged() {
       setupProjectList();
+      clearDefaultComment();
     }
 
     function confirmDelete(id) {
@@ -105,12 +113,12 @@ block content
             option(value=(client.id), selected=(client.id == model.currentTask.client_id)) #{client.id} - #{client.name}
       .col-md-2
         label.form-label Project
-        select.form-select#project-selector(name="project_id")
+        select.form-select#project-selector(name="project_id", onchange="clearDefaultComment()")
           - foreach(project; model.allProjects)
             option(data-client=(project.client_id), value=(project.id), selected=(project.id == model.currentTask.project_id)) #{project.id} - #{project.name}
       .col-md-6
         label.form-label Comment
-        input.form-control(type="text", name="comment", placeholder="Enter task comment here", value=(model.currentTask.comment))
+        input.form-control#task-comment(type="text", name="comment", placeholder="Enter task comment here", data-default-comment=(model.currentTask.id == -1 ? model.currentTask.comment : ""), value=(model.currentTask.comment))
     - if(model.currentTask.id != -1)
       .row.mb-3
         .col-md-4
